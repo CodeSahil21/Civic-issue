@@ -30,10 +30,10 @@ app.get("/api/health", (req, res) => {
     res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// TODO: Add your route imports here
-// app.use("/api/auth", authRoutes);
-// app.use("/api/issues", issueRoutes);
-// app.use("/api/users", userRoutes);
+// Auth routes
+import authRoutes from "./modules/auth/auth.routes";
+
+app.use("/api/v1/auth", authRoutes);
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);

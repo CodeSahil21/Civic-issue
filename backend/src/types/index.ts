@@ -1,0 +1,39 @@
+// Barrel export for all types
+// This allows clean imports like: import { RegisterUserData, IssueType } from '../types'
+
+// Auth types
+export * from './auth.types';
+
+// Issue types (for future)
+// export * from './issue.types';
+
+// User types (for future)
+// export * from './user.types';
+
+// Common/shared types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: T;
+  errors?: any[];
+}
+
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
