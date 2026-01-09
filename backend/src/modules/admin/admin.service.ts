@@ -181,21 +181,22 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
     }));
   }
 
-   static async getWardDetail(wardId: string): Promise<WardDetailPayload | null> {
+  static async getWardDetail(wardId: string): Promise<WardDetailPayload | null> {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         w."ward_number" AS "wardNumber",
         w."name"        AS "wardName",
         z."name"        AS "zoneName",
 
-        -- Engineers as JSON array
+        -- Engineers (include department from users table)
         COALESCE(
           jsonb_agg(DISTINCT jsonb_build_object(
             'id', u."id",
             'fullName', u."full_name",
             'email', u."email",
             'phoneNumber', u."phone_number",
-            'isActive', u."is_active"
+            'isActive', u."is_active",
+            'department', u."department"
           )) FILTER (WHERE u."id" IS NOT NULL),
           '[]'::jsonb
         ) AS "engineers",
@@ -235,13 +236,13 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
         COALESCE(COUNT(i."id") FILTER (WHERE i."priority" = 'MEDIUM'   AND i."deleted_at" IS NULL), 0) AS "medium",
         COALESCE(COUNT(i."id") FILTER (WHERE i."priority" = 'LOW'      AND i."deleted_at" IS NULL), 0) AS "low",
 
-        -- Aging for active issues (OPEN/ASSIGNED/IN_PROGRESS)
+        -- Aging for active issues
         COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (NOW() - i."created_at")) / 86400)
           FILTER (WHERE i."status" IN ('OPEN','ASSIGNED','IN_PROGRESS') AND i."deleted_at" IS NULL)::numeric, 2), 0) AS "avgOpenDays",
         COALESCE(MAX(EXTRACT(EPOCH FROM (NOW() - i."created_at")) / 86400)
           FILTER (WHERE i."status" IN ('OPEN','ASSIGNED','IN_PROGRESS') AND i."deleted_at" IS NULL), 0) AS "oldestOpenDays",
 
-        -- Top issues list (priority-weighted then recent), limit 50
+        -- Top issues list (include category department)
         (
           SELECT COALESCE(jsonb_agg(x ORDER BY x."priorityWeight" DESC, x."createdAt" DESC), '[]'::jsonb)
           FROM (
@@ -250,6 +251,7 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
               i2."status"                                          AS "status",
               i2."priority"                                        AS "priority",
               ic."name"                                            AS "categoryName",
+              ic."department"                                      AS "department",
               i2."created_at"                                      AS "createdAt",
               i2."resolved_at"                                     AS "resolvedAt",
               i2."sla_target_at"                                   AS "slaTargetAt",
@@ -291,7 +293,6 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
     if (!rows || rows.length === 0) return null;
 
     const r = rows[0];
-
     const engineers = Array.isArray(r.engineers) ? r.engineers : [];
     const issues = Array.isArray(r.issues) ? r.issues : [];
 
@@ -305,6 +306,7 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
         email: e.email ?? "",
         phoneNumber: e.phoneNumber ?? "",
         isActive: Boolean(e.isActive ?? false),
+        department: e.department ?? null,
       })),
       totalEngineers: engineers.length,
 
@@ -334,6 +336,7 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
         status: it.status,
         priority: it.priority ?? null,
         categoryName: it.categoryName ?? null,
+        department: it.department ?? null,
         createdAt: it.createdAt,
         resolvedAt: it.resolvedAt ?? null,
         slaTargetAt: it.slaTargetAt ?? null,
@@ -342,9 +345,9 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
         hasAfterImage: Boolean(it.hasAfterImage ?? false),
       })),
     };
-  }
-  
-   static async getWardIssues(
+  }  
+
+  static async getWardIssues(
     wardId: string,
     filters: WardIssueFilters
   ): Promise<WardIssueListItem[]> {
@@ -357,13 +360,14 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
         i."status"                           AS "status",
         i."priority"                         AS "priority",
         ic."name"                            AS "category",
+        ic."department"                      AS "department",
         a."full_name"                        AS "assignee",
         (i."resolved_at" IS NULL AND i."sla_target_at" IS NOT NULL AND i."sla_target_at" < NOW())
                                              AS "slaBreached",
         i."updated_at"                       AS "updatedAt"
       FROM "issues" i
       LEFT JOIN "issue_categories" ic ON ic."id" = i."category_id"
-      LEFT JOIN "users" a ON a."id" = i."assigned_to_id"
+      LEFT JOIN "users" a ON a."id" = i."assignee_id"
       WHERE i."ward_id" = ${wardId}::uuid
         AND i."deleted_at" IS NULL
         ${status ? Prisma.sql`AND i."status" = ${status}::"IssueStatus"` : Prisma.empty}
@@ -378,10 +382,13 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
       status: r.status,
       priority: r.priority ?? null,
       category: r.category ?? null,
+      department: r.department ?? null,
       assignee: r.assignee ?? null,
       slaBreached: Boolean(r.slaBreached),
       updatedAt: new Date(r.updatedAt).toISOString(),
     }));
   }
 }
+
+
 

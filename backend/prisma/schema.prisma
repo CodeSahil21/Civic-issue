@@ -40,6 +40,16 @@ enum MediaType {
   AFTER
 }
 
+// Engineering departments (VMC accurate)
+enum Department {
+  ROAD
+  STORM_WATER_DRAINAGE
+  SEWAGE_DISPOSAL
+  WATER_WORKS
+  STREET_LIGHT
+  BRIDGE_CELL
+}
+
 // IDENTITY & ACCESS CLUSTER
 
 model User {
@@ -50,6 +60,9 @@ model User {
   hashedPassword String   @map("hashed_password")
   role           UserRole @default(FIELD_WORKER)
   isActive       Boolean  @default(true) @map("is_active")
+
+  // Engineer’s department (optional for non-engineer roles)
+  department Department? @map("department")
 
   // Scope of Authority (Hierarchical RBAC)
   zoneId String? @map("zone_id") @db.Uuid
@@ -72,6 +85,9 @@ model User {
   @@index([role])
   @@index([wardId])
   @@index([zoneId])
+  @@index([department])
+  // Speeds assignment lookups by ward + role + department + activity
+  @@index([wardId, role, department, isActive])
   @@map("users")
 }
 
@@ -138,11 +154,15 @@ model IssueCategory {
   // e.g., { "fields": [{ "name": "depth", "type": "number", "required": true }] }
   formSchema Json? @map("form_schema")
 
+  // Owning department for auto-routing (VMC mapping)
+  department Department? @map("department")
+
   issues Issue[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([department])
   @@map("issue_categories")
 }
 
