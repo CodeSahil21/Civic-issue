@@ -110,9 +110,8 @@ model Ward {
   zoneId     String @map("zone_id") @db.Uuid
   zone       Zone   @relation(fields: [zoneId], references: [id])
 
-  // PostGIS boundary - created via raw SQL migration
-  // Type: geometry(Polygon, 4326)
-  // boundary Unsupported("geometry(Polygon, 4326)")?
+  // PostGIS boundary column
+  boundary   Unsupported("geometry(Polygon, 4326)")?
 
   issues Issue[]
   users  User[]
