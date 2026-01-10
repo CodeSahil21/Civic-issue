@@ -2,8 +2,22 @@ import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../../utils/apiError";
 import { hashPassword } from "../auth/auth.utils";
-import { RegisterUserData } from "../../types";
-import {DashboardPayload,ZoneOverview,ZoneDetail,WardOverview,WardDetailPayload,WardIssueListItem,WardIssueFilters} from "../../types/admin.types";
+import { 
+  RegisterUserData,
+  DashboardPayload, 
+  ZoneOverview, 
+  ZoneDetail, 
+  WardOverview, 
+  WardDetailPayload, 
+  WardIssueListItem, 
+  WardIssueFilters,
+  UserUpdateData,
+  UserStatistics,
+  ReassignWorkResponse,
+  UserFilterParams,
+  FilteredUser,
+  UserStatusChange
+} from "../../types";
 
 export class AdminService {
   // Admin registers other users
@@ -99,7 +113,574 @@ export class AdminService {
     return user;
   }
 
-  // Get all users (for Super Admin)
+
+  // Get user by ID for editing
+  static async getUserById(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        department: true,
+        isActive: true,
+        wardId: true,
+        zoneId: true,
+        ward: {
+          select: { wardNumber: true, name: true }
+        },
+        zone: {
+          select: { name: true }
+        },
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    return user;
+  }
+
+
+  // Update user details
+  static async updateUser(userId: string, updateData: UserUpdateData, updatedBy: string): Promise<any> {
+    const { fullName, email, phoneNumber, role, wardId, zoneId, department } = updateData;
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Prevent super admin from updating themselves
+    if (existingUser.role === 'SUPER_ADMIN') {
+      throw new ApiError(403, "Cannot update Super Admin account");
+    }
+
+    // Check for email/phone conflicts (excluding current user)
+    if (email || phoneNumber) {
+      const conflictUser = await prisma.user.findFirst({
+        where: {
+          AND: [
+            { id: { not: userId } },
+            {
+              OR: [
+                email ? { email } : {},
+                phoneNumber ? { phoneNumber } : {}
+              ]
+            }
+          ]
+        }
+      });
+
+      if (conflictUser) {
+        throw new ApiError(400, "Email or phone number already exists");
+      }
+    }
+
+    // Validate ward/zone if provided
+    if (wardId) {
+      const ward = await prisma.ward.findUnique({ 
+        where: { id: wardId },
+        select: { id: true, zoneId: true }
+      });
+      if (!ward) {
+        throw new ApiError(400, "Invalid ward ID");
+      }
+    }
+
+    if (zoneId) {
+      const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
+      if (!zone) {
+        throw new ApiError(400, "Invalid zone ID");
+      }
+    }
+
+    // CRITICAL: Validate ward belongs to zone
+    if (wardId && zoneId) {
+      const ward = await prisma.ward.findUnique({
+        where: { id: wardId },
+        select: { zoneId: true }
+      });
+
+      if (!ward || ward.zoneId !== zoneId) {
+        throw new ApiError(400, "Ward does not belong to selected zone");
+      }
+    }
+
+    // Role-based validation (CRITICAL for data integrity)
+    const finalRole = role || existingUser.role;
+    const finalWardId = wardId !== undefined ? wardId : existingUser.wardId;
+    const finalZoneId = zoneId !== undefined ? zoneId : existingUser.zoneId;
+    const finalDepartment = department !== undefined ? department : existingUser.department;
+
+    if (finalRole === 'ZONE_OFFICER') {
+      if (!finalZoneId) {
+        throw new ApiError(400, "Zone Officer must have a zone");
+      }
+      if (finalWardId) {
+        throw new ApiError(400, "Zone Officer cannot be assigned to a ward");
+      }
+    }
+
+    if (finalRole === 'WARD_ENGINEER' || finalRole === 'FIELD_WORKER') {
+      if (!finalZoneId || !finalWardId) {
+        throw new ApiError(400, "Ward-based roles must have both zone and ward");
+      }
+    }
+
+    // Validate department for engineers
+    if (finalRole === 'WARD_ENGINEER' && !finalDepartment) {
+      throw new ApiError(400, "Department is required for Ward Engineers");
+    }
+
+    if (finalRole !== 'WARD_ENGINEER' && finalDepartment) {
+      throw new ApiError(400, "Department can only be assigned to Ward Engineers");
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(fullName && { fullName }),
+        ...(email && { email }),
+        ...(phoneNumber && { phoneNumber }),
+        ...(role && { role }),
+        ...(wardId !== undefined && { wardId: wardId }),
+        ...(zoneId !== undefined && { zoneId: zoneId }),
+        ...(department !== undefined && { department: department })
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        department: true,
+        wardId: true,
+        zoneId: true,
+        ward: {
+          select: { wardNumber: true, name: true }
+        },
+        zone: {
+          select: { name: true }
+        }
+      }
+    });
+
+    // Track significant assignment changes (for judges/auditors)
+    const assignmentChanged = 
+      (role && role !== existingUser.role) ||
+      (wardId !== undefined && wardId !== existingUser.wardId) ||
+      (zoneId !== undefined && zoneId !== existingUser.zoneId) ||
+      (department !== undefined && department !== existingUser.department);
+
+    // Log the update
+    await prisma.auditLog.create({
+      data: {
+        userId: updatedBy,
+        action: assignmentChanged ? "USER_ASSIGNMENT_CHANGED" : "USER_UPDATE",
+        resource: "User",
+        resourceId: userId,
+        metadata: {
+          updatedFields: updateData as any,
+          previousData: {
+            fullName: existingUser.fullName,
+            email: existingUser.email,
+            role: existingUser.role,
+            wardId: existingUser.wardId,
+            zoneId: existingUser.zoneId,
+            department: existingUser.department
+          },
+          assignmentHistory: assignmentChanged ? {
+            changedAt: new Date().toISOString(),
+            changedBy: updatedBy,
+            changes: {
+              role: role !== existingUser.role ? { from: existingUser.role, to: role } : null,
+              ward: wardId !== existingUser.wardId ? { from: existingUser.wardId, to: wardId } : null,
+              zone: zoneId !== existingUser.zoneId ? { from: existingUser.zoneId, to: zoneId } : null,
+              department: department !== existingUser.department ? { from: existingUser.department, to: department } : null
+            }
+          } : null
+        } as any
+      }
+    });
+
+    return updatedUser;
+  }
+
+
+  // Reassign user's work to another user
+  static async reassignUserWork(fromUserId: string, toUserId: string, reassignedBy: string): Promise<ReassignWorkResponse> {
+    // Validate both users exist
+    const [fromUser, toUser] = await Promise.all([
+      prisma.user.findUnique({ 
+        where: { id: fromUserId },
+        select: {
+          id: true,
+          fullName: true,
+          role: true,
+          wardId: true,
+          zoneId: true,
+          department: true,
+          isActive: true
+        }
+      }),
+      prisma.user.findUnique({ 
+        where: { id: toUserId },
+        select: {
+          id: true,
+          fullName: true,
+          role: true,
+          wardId: true,
+          zoneId: true,
+          department: true,
+          isActive: true
+        }
+      })
+    ]);
+
+    if (!fromUser) {
+      throw new ApiError(404, "Source user not found");
+    }
+    if (!toUser) {
+      throw new ApiError(404, "Target user not found");
+    }
+
+    if (!toUser.isActive) {
+      throw new ApiError(400, "Cannot reassign to inactive user");
+    }
+
+    // Ensure roles are compatible
+    if (fromUser.role !== toUser.role) {
+      throw new ApiError(400, `Cannot reassign work between different roles (${fromUser.role} → ${toUser.role})`);
+    }
+
+    // Validate ward/zone compatibility
+    if (fromUser.role === 'WARD_ENGINEER' || fromUser.role === 'FIELD_WORKER') {
+      if (fromUser.wardId !== toUser.wardId) {
+        throw new ApiError(400, "Both users must be assigned to the same ward");
+      }
+    }
+
+    if (fromUser.role === 'ZONE_OFFICER') {
+      if (fromUser.zoneId !== toUser.zoneId) {
+        throw new ApiError(400, "Both users must be assigned to the same zone");
+      }
+    }
+
+    // Get list of issues to reassign
+    const activeIssues = await prisma.issue.findMany({
+      where: {
+        assigneeId: fromUserId,
+        status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        ticketNumber: true,
+        status: true,
+        priority: true
+      }
+    });
+
+    if (activeIssues.length === 0) {
+      throw new ApiError(400, "No active issues to reassign");
+    }
+
+    // Use transaction to reassign issues and create history entries
+    await prisma.$transaction(async (tx) => {
+      // Update all active issues
+      await tx.issue.updateMany({
+        where: {
+          assigneeId: fromUserId,
+          status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+          deletedAt: null
+        },
+        data: {
+          assigneeId: toUserId,
+          updatedAt: new Date()
+        }
+      });
+
+      // Create history entries for each reassigned issue
+      await tx.issueHistory.createMany({
+        data: activeIssues.map(issue => ({
+          issueId: issue.id,
+          changedBy: reassignedBy,
+          changeType: 'ASSIGNMENT',
+          oldValue: { assigneeId: fromUserId, assigneeName: fromUser.fullName },
+          newValue: { assigneeId: toUserId, assigneeName: toUser.fullName }
+        }))
+      });
+
+      // Create reassignment audit log
+      await tx.auditLog.create({
+        data: {
+          userId: reassignedBy,
+          action: "WORK_REASSIGNMENT",
+          resource: "User",
+          resourceId: fromUserId,
+          metadata: {
+            fromUser: {
+              id: fromUser.id,
+              fullName: fromUser.fullName,
+              role: fromUser.role,
+              wardId: fromUser.wardId,
+              zoneId: fromUser.zoneId
+            },
+            toUser: {
+              id: toUser.id,
+              fullName: toUser.fullName,
+              role: toUser.role,
+              wardId: toUser.wardId,
+              zoneId: toUser.zoneId
+            },
+            reassignedIssues: activeIssues.length,
+            issueTickets: activeIssues.map(i => i.ticketNumber)
+          }
+        }
+      });
+    });
+
+    return {
+      message: `Successfully reassigned ${activeIssues.length} active issue(s) from ${fromUser.fullName} to ${toUser.fullName}`,
+      reassignedCount: activeIssues.length,
+      fromUser: { 
+        id: fromUser.id, 
+        fullName: fromUser.fullName,
+        role: fromUser.role 
+      },
+      toUser: { 
+        id: toUser.id, 
+        fullName: toUser.fullName,
+        role: toUser.role 
+      },
+      issues: activeIssues.map(i => ({
+        ticketNumber: i.ticketNumber,
+        status: i.status,
+        priority: i.priority
+      }))
+    };
+  }
+
+
+  // Deactivate user (soft delete)
+  static async deactivateUser(userId: string, deactivatedBy: string): Promise<UserStatusChange> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    if (user.role === 'SUPER_ADMIN') {
+      throw new ApiError(403, "Cannot deactivate Super Admin account");
+    }
+
+    if (!user.isActive) {
+      throw new ApiError(400, "User is already deactivated");
+    }
+
+    // Check for active assignments
+    const activeIssues = await prisma.issue.count({
+      where: {
+        assigneeId: userId,
+        status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+        deletedAt: null
+      }
+    });
+
+    if (activeIssues > 0) {
+      throw new ApiError(400, `Cannot deactivate user with ${activeIssues} active issue(s). Please reassign them first.`);
+    }
+
+    // Deactivate user
+    const deactivatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        isActive: true
+      }
+    });
+
+    // Log deactivation
+    await prisma.auditLog.create({
+      data: {
+        userId: deactivatedBy,
+        action: "USER_DEACTIVATION",
+        resource: "User",
+        resourceId: userId,
+        metadata: {
+          deactivatedUser: {
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role
+          }
+        }
+      }
+    });
+
+    return deactivatedUser;
+  }
+
+
+  // Reactivate user
+  static async reactivateUser(userId: string, reactivatedBy: string): Promise<UserStatusChange> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    if (user.role === 'SUPER_ADMIN') {
+      throw new ApiError(403, "Cannot reactivate Super Admin account");
+    }
+
+    if (user.isActive) {
+      throw new ApiError(400, "User is already active");
+    }
+
+    // Reactivate user
+    const reactivatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: true },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        isActive: true
+      }
+    });
+
+    // Log reactivation
+    await prisma.auditLog.create({
+      data: {
+        userId: reactivatedBy,
+        action: "USER_REACTIVATION",
+        resource: "User",
+        resourceId: userId,
+        metadata: {
+          reactivatedUser: {
+            fullName: user.fullName,
+            email: user.email,
+            role: user.role
+          }
+        }
+      }
+    });
+
+    return reactivatedUser;
+  }
+
+
+  // Get user work statistics
+  static async getUserStatistics(userId: string): Promise<UserStatistics> {
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { id: true, fullName: true, role: true, isActive: true }
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Get issue statistics
+    const [totalAssigned, activeIssues, resolvedIssues, avgResolutionDays] = await Promise.all([
+      // Total ever assigned
+      prisma.issue.count({
+        where: { assigneeId: userId, deletedAt: null }
+      }),
+      // Currently active
+      prisma.issue.count({
+        where: {
+          assigneeId: userId,
+          status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+          deletedAt: null
+        }
+      }),
+      // Resolved issues
+      prisma.issue.count({
+        where: {
+          assigneeId: userId,
+          status: { in: ['RESOLVED', 'VERIFIED'] },
+          deletedAt: null
+        }
+      }),
+      // Average resolution time (direct raw query - no unused aggregate)
+      (async () => {
+        const result = await prisma.$queryRaw<{ avg_days: number }[]>`
+          SELECT 
+            COALESCE(AVG(EXTRACT(EPOCH FROM ("resolved_at" - "assigned_at")) / 86400), 0)::numeric(10,2) as avg_days
+          FROM "issues"
+          WHERE "assignee_id" = ${userId}::uuid
+            AND "resolved_at" IS NOT NULL
+            AND "assigned_at" IS NOT NULL
+            AND "deleted_at" IS NULL
+        `;
+        return Number(result[0]?.avg_days || 0);
+      })()
+    ]);
+
+    return {
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive
+      },
+      statistics: {
+        totalAssigned,
+        activeIssues,
+        resolvedIssues,
+        avgResolutionDays,
+        resolutionRate: totalAssigned > 0 ? Math.round((resolvedIssues / totalAssigned) * 100) : 0
+      }
+    };
+  }
+
+
+  // Get filtered users (for dropdowns in frontend)
+  static async getUsersByFilter(filters: UserFilterParams): Promise<FilteredUser[]> {
+    const whereClause: any = {};
+
+    if (filters.role) whereClause.role = filters.role;
+    if (filters.wardId) whereClause.wardId = filters.wardId;
+    if (filters.zoneId) whereClause.zoneId = filters.zoneId;
+    if (filters.isActive !== undefined) whereClause.isActive = filters.isActive;
+    if (filters.department) whereClause.department = filters.department;
+
+    const users = await prisma.user.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        department: true,
+        isActive: true,
+        wardId: true,
+        zoneId: true,
+        ward: {
+          select: { wardNumber: true, name: true }
+        },
+        zone: {
+          select: { name: true }
+        }
+      },
+      orderBy: { fullName: 'asc' }
+    });
+
+    return users;
+  }
+
+
   static async getAllUsers() {
     return await prisma.user.findMany({
       select: {
@@ -136,6 +717,8 @@ export class AdminService {
       { value: 'BRIDGE_CELL', label: 'Bridge Cell' }
     ];
   }
+
+
   // Fetch dashboard overview statistics 
   static async getDashboard() {
     const rows = await prisma.$queryRaw<DashboardPayload[]>`
@@ -187,6 +770,7 @@ export class AdminService {
     };
   }
 
+
    static async getZonesOverview() {
     const rows = await prisma.$queryRaw<ZoneOverview[]>`
       SELECT
@@ -228,6 +812,7 @@ export class AdminService {
       zoneOfficer: r.zoneOfficer ?? null,
     }));
   }
+
 
    static async getZoneDetail(zoneId: string): Promise<ZoneDetail | null> {
     const rows = await prisma.$queryRaw<ZoneDetail[]>`
@@ -273,6 +858,7 @@ export class AdminService {
     };
   }
 
+
 static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
     const rows = await prisma.$queryRaw<WardOverview[]>`
       SELECT
@@ -314,6 +900,7 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
     }));
   }
 
+  
   static async getWardDetail(wardId: string): Promise<WardDetailPayload | null> {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
@@ -479,6 +1066,7 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
       })),
     };
   }  
+
 
   static async getWardIssues(
     wardId: string,

@@ -18,11 +18,96 @@ export class AdminController {
     );
   });
 
+
   static getAllUsers = asyncHandler(async (req: Request, res: Response) => {
     const users = await AdminService.getAllUsers();
 
     res.status(200).json(
       new ApiResponse(200, users, "Users retrieved successfully")
+    );
+  });
+
+
+  static getUserById = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const user = await AdminService.getUserById(userId);
+
+    res.status(200).json(
+      new ApiResponse(200, user, "User retrieved successfully")
+    );
+  });
+
+
+  static updateUser = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const updateData = req.body;
+    
+    const user = await AdminService.updateUser(userId, updateData, req.user!.id);
+
+    res.status(200).json(
+      new ApiResponse(200, user, "User updated successfully")
+    );
+  });
+
+
+  static reassignUserWork = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const { toUserId } = req.body;
+    
+    const result = await AdminService.reassignUserWork(userId, toUserId, req.user!.id);
+
+    res.status(200).json(
+      new ApiResponse(200, result, "Work reassigned successfully")
+    );
+  });
+
+
+  static deactivateUser = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    
+    const user = await AdminService.deactivateUser(userId, req.user!.id);
+
+    res.status(200).json(
+      new ApiResponse(200, user, "User deactivated successfully")
+    );
+  });
+
+
+  static reactivateUser = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    
+    const user = await AdminService.reactivateUser(userId, req.user!.id);
+
+    res.status(200).json(
+      new ApiResponse(200, user, "User reactivated successfully")
+    );
+  });
+
+
+  static getUserStatistics = asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    
+    const statistics = await AdminService.getUserStatistics(userId);
+
+    res.status(200).json(
+      new ApiResponse(200, statistics, "User statistics retrieved successfully")
+    );
+  });
+
+
+  static getUsersByFilter = asyncHandler(async (req: Request, res: Response) => {
+    const { role, wardId, zoneId, isActive, department } = req.query;
+    
+    const users = await AdminService.getUsersByFilter({
+      role: role as string,
+      wardId: wardId as string,
+      zoneId: zoneId as string,
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+      department: department as string
+    });
+
+    res.status(200).json(
+      new ApiResponse(200, users, "Filtered users retrieved successfully")
     );
   });
 
@@ -35,16 +120,19 @@ export class AdminController {
     );
   });
 
+
   // Dashboard Functions
   static getDashboard = asyncHandler(async (_req: Request, res: Response) => {
     const data = await AdminService.getDashboard();
     res.status(200).json(new ApiResponse(200, data, "Dashboard overview retrieved"));
   });
 
+
   static getZonesOverview = asyncHandler(async (_req: Request, res: Response) => {
     const data = await AdminService.getZonesOverview();
     res.status(200).json(new ApiResponse(200, data, "Zones overview retrieved"));
   });
+
 
   static getZoneDetail = asyncHandler(async (req: Request, res: Response) => {
     const { zoneId } = req.params;
@@ -57,11 +145,13 @@ export class AdminController {
     return res.status(200).json(new ApiResponse(200, data, "Zone detail retrieved"));
   });
 
+
   static getZoneWards = asyncHandler(async (req: Request, res: Response) => {
     const { zoneId } = req.params;
     const data = await AdminService.getZoneWards(zoneId);
     return res.status(200).json(new ApiResponse(200, data, "Zone wards overview retrieved"));
   });
+
 
   static getWardDetail = asyncHandler(async (req: Request, res: Response) => {
     const { wardId } = req.params;
@@ -73,6 +163,7 @@ export class AdminController {
 
     return res.status(200).json(new ApiResponse(200, data, "Ward detail retrieved"));
   }); 
+  
   
  static getWardIssues = asyncHandler(async (req: Request, res: Response) => {
     const { wardId } = req.params;
