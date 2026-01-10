@@ -10,7 +10,6 @@ router.post("/login", validateLogin, AuthController.login);
 router.post("/forgot-password", validateForgotPassword, AuthController.forgotPassword);
 router.post("/verify-otp", validateVerifyOtp, AuthController.verifyOtp);
 router.post("/reset-password", validateResetPassword, AuthController.resetPassword);
-
 // protected routes
 router.use(verifyJWT); // All routes below require authentication
 
