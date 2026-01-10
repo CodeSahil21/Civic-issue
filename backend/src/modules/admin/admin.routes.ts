@@ -7,6 +7,23 @@ const router = Router();
 
 router.use(verifyJWT);
 
+// User Management Routes (Super Admin only)
+router.post("/register", 
+  requireRole(["SUPER_ADMIN"]), 
+  AdminController.registerUser
+);
+
+router.get("/users", 
+  requireRole(["SUPER_ADMIN"]), 
+  AdminController.getAllUsers
+);
+
+router.get("/departments", 
+  requireRole(["SUPER_ADMIN"]), 
+  AdminController.getDepartments
+);
+
+// Dashboard Routes (Super Admin only)
 router.get("/dashboard", requireRole(["SUPER_ADMIN"]), AdminController.getDashboard);
 router.get("/zones", requireRole(["SUPER_ADMIN"]), AdminController.getZonesOverview);
 router.get("/zones/:zoneId", requireRole(["SUPER_ADMIN"]), AdminController.getZoneDetail);

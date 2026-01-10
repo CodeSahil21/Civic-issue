@@ -1,26 +1,159 @@
 import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
+import { ApiError } from "../../utils/apiError";
+import { hashPassword } from "../auth/auth.utils";
+import { RegisterUserData } from "../../types";
 import {DashboardPayload,ZoneOverview,ZoneDetail,WardOverview,WardDetailPayload,WardIssueListItem,WardIssueFilters} from "../../types/admin.types";
 
 export class AdminService {
+  // Admin registers other users
+  static async registerUser(userData: RegisterUserData, registeredBy: string) {
+    const { fullName, email, phoneNumber, password, role, wardId, zoneId, department } = userData;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phoneNumber }]
+      }
+    });
+
+    if (existingUser) {
+      throw new ApiError(400, "User with this email or phone already exists");
+    }
+
+    // Validate ward/zone existence
+    if (wardId) {
+      const ward = await prisma.ward.findUnique({ where: { id: wardId } });
+      if (!ward) {
+        throw new ApiError(400, "Invalid ward ID");
+      }
+    }
+
+    if (zoneId) {
+      const zone = await prisma.zone.findUnique({ where: { id: zoneId } });
+      if (!zone) {
+        throw new ApiError(400, "Invalid zone ID");
+      }
+    }
+
+    // Validate department for engineers only
+    if (role === 'WARD_ENGINEER' && !department) {
+      throw new ApiError(400, "Department is required for Ward Engineers");
+    }
+
+    // Ensure non-engineers don't have department assigned
+    if (role !== 'WARD_ENGINEER' && department) {
+      throw new ApiError(400, "Department can only be assigned to Ward Engineers");
+    }
+
+    // Hash password using utility
+    const hashedPassword = await hashPassword(password);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        fullName,
+        email,
+        phoneNumber,
+        hashedPassword,
+        role,
+        wardId: wardId || null,
+        zoneId: zoneId || null,
+        department: department || null
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        department: true,
+        wardId: true,
+        zoneId: true,
+        ward: {
+          select: { wardNumber: true, name: true }
+        },
+        zone: {
+          select: { name: true }
+        }
+      }
+    });
+
+    // Log the registration
+    await prisma.auditLog.create({
+      data: {
+        userId: registeredBy,
+        action: "USER_REGISTRATION",
+        resource: "User",
+        resourceId: user.id,
+        metadata: {
+          registeredUser: {
+            email: user.email,
+            role: user.role,
+            department: user.department
+          }
+        }
+      }
+    });
+
+    return user;
+  }
+
+  // Get all users (for Super Admin)
+  static async getAllUsers() {
+    return await prisma.user.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        department: true,
+        isActive: true,
+        wardId: true,
+        zoneId: true,
+        ward: {
+          select: { wardNumber: true, name: true }
+        },
+        zone: {
+          select: { name: true }
+        },
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  
+  // Get available departments for Ward Engineers
+  static async getDepartments() {
+    return [
+      { value: 'ROAD', label: 'Road Department' },
+      { value: 'STORM_WATER_DRAINAGE', label: 'Storm Water Drainage' },
+      { value: 'SEWAGE_DISPOSAL', label: 'Sewage Disposal' },
+      { value: 'WATER_WORKS', label: 'Water Works' },
+      { value: 'STREET_LIGHT', label: 'Street Light' },
+      { value: 'BRIDGE_CELL', label: 'Bridge Cell' }
+    ];
+  }
   // Fetch dashboard overview statistics 
   static async getDashboard() {
     const rows = await prisma.$queryRaw<DashboardPayload[]>`
       SELECT
-        COALESCE(COUNT(*) FILTER (WHERE "deletedAt" IS NULL), 0) AS "totalIssues",
-        COALESCE(COUNT(*) FILTER (WHERE "status" = 'OPEN' AND "deletedAt" IS NULL), 0) AS "open",
-        COALESCE(COUNT(*) FILTER (WHERE "status" = 'IN_PROGRESS' AND "deletedAt" IS NULL), 0) AS "inProgress",
+        COALESCE(COUNT(*) FILTER (WHERE "deleted_at" IS NULL), 0) AS "totalIssues",
+        COALESCE(COUNT(*) FILTER (WHERE "status" = 'OPEN' AND "deleted_at" IS NULL), 0) AS "open",
+        COALESCE(COUNT(*) FILTER (WHERE "status" = 'IN_PROGRESS' AND "deleted_at" IS NULL), 0) AS "inProgress",
         COALESCE(COUNT(*) FILTER (
-          WHERE "deletedAt" IS NULL
-            AND "resolvedAt" IS NULL
-            AND "slaTargetAt" < NOW()
+          WHERE "deleted_at" IS NULL
+            AND "resolved_at" IS NULL
+            AND "sla_target_at" < NOW()
         ), 0) AS "slaBreached",
         COALESCE(
           ROUND(
             AVG(
               CASE
-                WHEN "slaTargetAt" IS NOT NULL
-                THEN EXTRACT(EPOCH FROM ("slaTargetAt" - "createdAt")) / 3600
+                WHEN "sla_target_at" IS NOT NULL
+                THEN EXTRACT(EPOCH FROM ("sla_target_at" - "created_at")) / 3600
                 ELSE NULL
               END
             )::numeric
@@ -28,11 +161,11 @@ export class AdminService {
         , 0) AS "avgSlaTimeHours",
         COALESCE(
           ROUND(
-            100 * (COUNT(*) FILTER (WHERE "resolvedAt" IS NOT NULL AND "deletedAt" IS NULL))::numeric
-            / NULLIF(COUNT(*) FILTER (WHERE "deletedAt" IS NULL), 0)
+            100 * (COUNT(*) FILTER (WHERE "resolved_at" IS NOT NULL AND "deleted_at" IS NULL))::numeric
+            / NULLIF(COUNT(*) FILTER (WHERE "deleted_at" IS NULL), 0)
           , 2)
         , 0) AS "resolutionRatePercent"
-      FROM "Issue";
+      FROM "issues";
     `;
 
     const r = rows[0] ?? {
@@ -65,23 +198,23 @@ export class AdminService {
           ELSE ROUND(
             100.0
             * (COUNT(*) FILTER (
-                WHERE i."resolvedAt" IS NOT NULL
-                  AND i."slaTargetAt" IS NOT NULL
-                  AND i."resolvedAt" <= i."slaTargetAt"
+                WHERE i."resolved_at" IS NOT NULL
+                  AND i."sla_target_at" IS NOT NULL
+                  AND i."resolved_at" <= i."sla_target_at"
               ))::numeric
             / NULLIF(COUNT(i.*), 0)
           )::int
         END AS "slaCompliance",
         (
-          SELECT u."fullName"
-          FROM "User" u
-          WHERE u."zoneId" = z."id" AND u."role" = 'ZONE_OFFICER'
+          SELECT u."full_name"
+          FROM "users" u
+          WHERE u."zone_id" = z."id" AND u."role" = 'ZONE_OFFICER'
           ORDER BY u."id"
           LIMIT 1
         ) AS "zoneOfficer"
-      FROM "Zone" z
-      LEFT JOIN "Ward" w ON w."zoneId" = z."id"
-      LEFT JOIN "Issue" i ON i."wardId" = w."id" AND i."deletedAt" IS NULL
+      FROM "zones" z
+      LEFT JOIN "wards" w ON w."zone_id" = z."id"
+      LEFT JOIN "issues" i ON i."ward_id" = w."id" AND i."deleted_at" IS NULL
       GROUP BY z."id", z."name"
       ORDER BY z."name" ASC;
     `;
@@ -101,9 +234,9 @@ export class AdminService {
       SELECT
         z."name" AS "zoneName",
         (
-          SELECT u."fullName"
-          FROM "User" u
-          WHERE u."zoneId" = z."id" AND u."role" = 'ZONE_OFFICER'
+          SELECT u."full_name"
+          FROM "users" u
+          WHERE u."zone_id" = z."id" AND u."role" = 'ZONE_OFFICER'
           ORDER BY u."id"
           LIMIT 1
         ) AS "zoneOfficer",
@@ -114,16 +247,16 @@ export class AdminService {
           ELSE ROUND(
             100.0
             * (COUNT(*) FILTER (
-                WHERE i."resolvedAt" IS NOT NULL
-                  AND i."slaTargetAt" IS NOT NULL
-                  AND i."resolvedAt" <= i."slaTargetAt"
+                WHERE i."resolved_at" IS NOT NULL
+                  AND i."sla_target_at" IS NOT NULL
+                  AND i."resolved_at" <= i."sla_target_at"
               ))::numeric
             / NULLIF(COUNT(i.*), 0)
           )::int
         END AS "slaCompliance"
-      FROM "Zone" z
-      LEFT JOIN "Ward" w ON w."zoneId" = z."id"
-      LEFT JOIN "Issue" i ON i."wardId" = w."id" AND i."deletedAt" IS NULL
+      FROM "zones" z
+      LEFT JOIN "wards" w ON w."zone_id" = z."id"
+      LEFT JOIN "issues" i ON i."ward_id" = w."id" AND i."deleted_at" IS NULL
       WHERE z."id" = ${zoneId}
       GROUP BY z."id", z."name";
     `;
@@ -389,6 +522,3 @@ static async getZoneWards(zoneId: string): Promise<WardOverview[]> {
     }));
   }
 }
-
-
-

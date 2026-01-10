@@ -4,6 +4,38 @@ import { ApiResponse } from "../../utils/apiResponse";
 import { AdminService } from "./admin.service";
 
 export class AdminController {
+  // User Management Functions
+  static registerUser = asyncHandler(async (req: Request, res: Response) => {
+    const { fullName, email, phoneNumber, password, role, wardId, zoneId } = req.body;
+    
+    const user = await AdminService.registerUser(
+      { fullName, email, phoneNumber, password, role, wardId, zoneId },
+      req.user!.id
+    );
+
+    res.status(201).json(
+      new ApiResponse(201, user, "User registered successfully")
+    );
+  });
+
+  static getAllUsers = asyncHandler(async (req: Request, res: Response) => {
+    const users = await AdminService.getAllUsers();
+
+    res.status(200).json(
+      new ApiResponse(200, users, "Users retrieved successfully")
+    );
+  });
+
+
+  static getDepartments = asyncHandler(async (req: Request, res: Response) => {
+    const data = await AdminService.getDepartments();
+
+    res.status(200).json(
+      new ApiResponse(200, data, "Departments retrieved successfully")
+    );
+  });
+
+  // Dashboard Functions
   static getDashboard = asyncHandler(async (_req: Request, res: Response) => {
     const data = await AdminService.getDashboard();
     res.status(200).json(new ApiResponse(200, data, "Dashboard overview retrieved"));
