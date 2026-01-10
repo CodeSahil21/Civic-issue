@@ -128,3 +128,106 @@ export interface WardIssueListItem {
   slaBreached: boolean;
   updatedAt: string; // ISO string
 }
+
+// User Statistics Types
+export interface UserStatistics {
+  user: {
+    id: string;
+    fullName: string;
+    role: string;
+    isActive: boolean;
+  };
+  statistics: {
+    totalAssigned: number;
+    activeIssues: number;
+    resolvedIssues: number;
+    avgResolutionDays: number;
+    resolutionRate: number; // 0-100
+  };
+}
+
+// Reassignment Types
+export interface ReassignWorkResponse {
+  message: string;
+  reassignedCount: number;
+  fromUser: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
+  toUser: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
+  issues: Array<{
+    ticketNumber: string;
+    status: string;
+    priority: string;
+  }>;
+}
+
+// User Filter Types
+export interface UserFilterParams {
+  role?: string;
+  wardId?: string;
+  zoneId?: string;
+  isActive?: boolean;
+  department?: string;
+}
+
+export interface FilteredUser {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  department: Department | null;
+  isActive: boolean;
+  wardId: string | null;
+  zoneId: string | null;
+  ward: {
+    wardNumber: number;
+    name: string;
+  } | null;
+  zone: {
+    name: string;
+  } | null;
+}
+
+// User Update Types
+export interface UserUpdateData {
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: "SUPER_ADMIN" | "ZONE_OFFICER" | "WARD_ENGINEER" | "FIELD_WORKER" | "CITIZEN";
+  wardId?: string | null;
+  zoneId?: string | null;
+  department?: Department | null;
+}
+
+export interface UpdatedUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+  department: Department | null;
+  wardId: string | null;
+  zoneId: string | null;
+  ward: {
+    wardNumber: number;
+    name: string;
+  } | null;
+  zone: {
+    name: string;
+  } | null;
+}
+
+// Deactivate/Reactivate User Types
+export interface UserStatusChange {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
