@@ -75,6 +75,7 @@ model User {
   assignedIssues Issue[]    @relation("AssignedTo")
   comments       Comment[]
   auditLogs      AuditLog[]
+  passwordResets PasswordReset[]
 
   // Gamification
   gamification UserGamification?
@@ -101,6 +102,22 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model PasswordReset {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  otp       String   // 6-digit OTP instead of token
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  attempts  Int      @default(0) // Track failed attempts
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([otp])
+  @@index([expiresAt])
+  @@map("password_resets")
 }
 
 // SPATIAL REGISTRY (Geo-Fence Layer)
