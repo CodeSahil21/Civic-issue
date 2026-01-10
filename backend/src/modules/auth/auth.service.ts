@@ -2,13 +2,12 @@ import { prisma } from "../../lib/prisma";
 import { ApiError } from "../../utils/apiError";
 import { generateTokenWithUser } from "../../utils/tokens";
 import { comparePassword, hashPassword } from "./auth.utils";
-import { LoginData } from "../../types";
+import { LoginData, AuthResponse, ForgotPasswordResponse, VerifyOtpResponse, ResetPasswordResponse, LogoutResponse } from "../../types";
 import { EmailService } from "../../services/email/emailService";
-import * as crypto from "crypto";
 
 export class AuthService {
   // Login functionality
-  static async login(loginData: LoginData) {
+  static async login(loginData: LoginData): Promise<AuthResponse> {
     const { email, password } = loginData;
 
     // Find user
@@ -57,7 +56,7 @@ export class AuthService {
   }
 
   // Forgot password - send OTP
-  static async forgotPassword(email: string) {
+  static async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
@@ -113,7 +112,7 @@ export class AuthService {
   }
 
   // Verify OTP
-  static async verifyOtp(email: string, otp: string) {
+  static async verifyOtp(email: string, otp: string): Promise<VerifyOtpResponse> {
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
@@ -175,7 +174,7 @@ export class AuthService {
   }
 
   // Reset password with OTP
-  static async resetPassword(email: string, otp: string, newPassword: string) {
+  static async resetPassword(email: string, otp: string, newPassword: string): Promise<ResetPasswordResponse> {
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
@@ -228,7 +227,7 @@ export class AuthService {
   }
 
   // Logout functionality
-  static async logout(userId: string) {
+  static async logout(userId: string): Promise<LogoutResponse> {
     // Log logout
     await prisma.auditLog.create({
       data: {

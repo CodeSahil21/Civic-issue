@@ -27,9 +27,9 @@ export interface UserInfo {
   fullName: string;
   email: string;
   role: UserRole;
-  department?: Department;
-  wardId?: string;
-  zoneId?: string;
+  department?: Department | null;
+  wardId?: string | null;
+  zoneId?: string | null;
 }
 
 // Request body validation types
@@ -62,4 +62,23 @@ export interface ResetPasswordData {
   email: string;
   otp: string;
   newPassword: string;
+}
+
+// Additional response types used in auth service
+export interface ForgotPasswordResponse {
+  message: string;
+  otp?: string; // Only in development
+}
+
+export interface VerifyOtpResponse {
+  message: string;
+  verified: boolean;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export interface LogoutResponse {
+  success: boolean;
 }
