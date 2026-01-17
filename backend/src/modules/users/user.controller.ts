@@ -50,4 +50,31 @@ export class UserDashboardController {
     const data = await UserDashboardService.getAssignedIssuesDashboard(userId, limit);
     return res.status(200).json(new ApiResponse(200, data, "Assigned issues dashboard retrieved"));
   });
+
+  // Update own profile
+  static updateProfile = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { fullName, phoneNumber } = req.body;
+
+    const updatedUser = await UserDashboardService.updateOwnProfile(userId, { fullName, phoneNumber });
+    return res.status(200).json(new ApiResponse(200, updatedUser, "Profile updated successfully"));
+  });
+
+  // Change own password
+  static changePassword = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { currentPassword, newPassword } = req.body;
+
+    const result = await UserDashboardService.changeOwnPassword(userId, currentPassword, newPassword);
+    return res.status(200).json(new ApiResponse(200, result, "Password changed successfully"));
+  });
+
+  // Get own activity log
+  static getActivityLog = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const limit = parseLimit(req);
+
+    const activities = await UserDashboardService.getUserActivityLog(userId, limit);
+    return res.status(200).json(new ApiResponse(200, activities, "Activity log retrieved successfully"));
+  });
 }

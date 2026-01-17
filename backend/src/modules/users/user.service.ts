@@ -1,6 +1,7 @@
 import { Prisma, type Department, type IssueStatus, type Priority } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { ApiError } from "../../utils/apiError";
+import { hashPassword, comparePassword } from "../auth/auth.utils";
 import type {
   AssignedIssuesDashboardPayload,
   DashboardIssueListItem,
@@ -215,5 +216,129 @@ export class UserDashboardService {
   static assertWardEngineerScope(wardId: string | null | undefined, department: string | null | undefined) {
     if (!wardId) throw new ApiError(400, "WARD_ENGINEER must have wardId");
     if (!department) throw new ApiError(400, "WARD_ENGINEER must have department");
+  }
+
+  // Update user's own profile (name, phone)
+  static async updateOwnProfile(userId: string, updateData: { fullName?: string; phoneNumber?: string }) {
+    const { fullName, phoneNumber } = updateData;
+
+    // Validate at least one field is being updated
+    if (!fullName && !phoneNumber) {
+      throw new ApiError(400, "At least one field (fullName or phoneNumber) must be provided");
+    }
+
+    // Check if phone number is already taken
+    if (phoneNumber) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          phoneNumber,
+          id: { not: userId }
+        }
+      });
+
+      if (existingUser) {
+        throw new ApiError(409, "Phone number already in use");
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(fullName && { fullName }),
+        ...(phoneNumber && { phoneNumber })
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        department: true,
+        updatedAt: true
+      }
+    });
+
+    // Log profile update
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "PROFILE_UPDATE",
+        resource: "User",
+        resourceId: userId,
+        metadata: {
+          updatedFields: updateData
+        }
+      }
+    });
+
+    return updatedUser;
+  }
+
+  // Change user's own password
+  static async changeOwnPassword(userId: string, currentPassword: string, newPassword: string) {
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, hashedPassword: true, email: true }
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Verify current password
+    const isValid = await comparePassword(currentPassword, user.hashedPassword);
+    if (!isValid) {
+      throw new ApiError(401, "Current password is incorrect");
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { hashedPassword }
+    });
+
+    // Log password change
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "PASSWORD_CHANGED",
+        resource: "User",
+        resourceId: userId,
+        metadata: {
+          changedAt: new Date().toISOString()
+        }
+      }
+    });
+
+    return { message: "Password changed successfully" };
+  }
+
+  // Get user's activity log
+  static async getUserActivityLog(userId: string, limit = 20) {
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+    const activities = await prisma.auditLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: safeLimit,
+      select: {
+        id: true,
+        action: true,
+        resource: true,
+        resourceId: true,
+        metadata: true,
+        createdAt: true
+      }
+    });
+
+    return {
+      userId,
+      activities,
+      count: activities.length
+    };
   }
 }
