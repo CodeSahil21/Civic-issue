@@ -468,5 +468,4 @@ const issuesSlice = createSlice({
 });
 
 export const { clearError, setCurrentIssue, clearCurrentIssue, updateIssueInList } = issuesSlice.actions;
-export { addAfterMedia };
 export default issuesSlice.reducer;
