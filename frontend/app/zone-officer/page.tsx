@@ -6,6 +6,8 @@ import { fetchZoneOfficerDetail, fetchZoneOfficerWards } from "@/redux";
 import ZoneOverview from "@/components/zone/ZoneOverview";
 import WardCards from "@/components/zone/WardCards";
 import { ZoneOverviewSkeleton } from "@/components/ui/loading-skeletons";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { AlertTriangle, MapPin } from "lucide-react";
 
 export default function ZoneOfficerPage() {
@@ -23,13 +25,12 @@ export default function ZoneOfficerPage() {
   if (!user?.zoneId) {
     return (
       <div className="p-4 sm:p-6">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 sm:p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertTriangle className="w-6 h-6 text-red-600" />
-            <h2 className="text-lg font-semibold text-red-800">Access Restricted</h2>
-          </div>
-          <p className="text-red-700">No zone assigned to this user. Please contact your administrator.</p>
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No zone assigned to this user. Please contact your administrator.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -44,25 +45,24 @@ export default function ZoneOfficerPage() {
 
   if (error) {
     return (
-      <div className="p-4 sm:p-6">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 sm:p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertTriangle className="w-6 h-6 text-red-600" />
-            <h2 className="text-lg font-semibold text-red-800">Error Loading Data</h2>
-          </div>
-          <p className="text-red-700 mb-4">{error}</p>
-          <button 
-            onClick={() => {
-              if (user?.zoneId) {
-                dispatch(fetchZoneOfficerDetail(user.zoneId));
-                dispatch(fetchZoneOfficerWards(user.zoneId));
-              }
-            }}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="p-4 sm:p-6 space-y-4">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
+        <Button 
+          onClick={() => {
+            if (user?.zoneId) {
+              dispatch(fetchZoneOfficerDetail(user.zoneId));
+              dispatch(fetchZoneOfficerWards(user.zoneId));
+            }
+          }}
+          variant="destructive"
+        >
+          Retry
+        </Button>
       </div>
     );
   }

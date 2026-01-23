@@ -86,6 +86,11 @@ export const verifyResolutionWithParamsSchema = z.object({
   comment: z.string().trim().min(1).max(1000).optional()
 });
 
+export const reopenIssueWithParamsSchema = z.object({
+  issueId: z.string().refine(val => UUID_REGEX.test(val), { message: "Invalid UUID" }),
+  comment: z.string().trim().min(1).max(1000).optional()
+});
+
 export const statsQuerySchema = z.object({
   wardId: z.string().refine(val => UUID_REGEX.test(val), { message: "Invalid UUID" }).optional(),
   zoneId: z.string().refine(val => UUID_REGEX.test(val), { message: "Invalid UUID" }).optional(),

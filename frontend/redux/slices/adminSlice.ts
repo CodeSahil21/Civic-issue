@@ -71,28 +71,22 @@ interface WardDetail {
   };
   avgOpenDays: number;
   oldestOpenDays: number;
-  issues: Array<{
-    id: string;
-    status: string;
-    priority: string;
-    categoryName: string;
-    department: string;
-    createdAt: string;
-    resolvedAt: string | null;
-    slaTargetAt: string | null;
-    priorityWeight: number;
-    hasBeforeImage: boolean;
-    hasAfterImage: boolean;
-  }>;
 }
 
 interface UserStatistics {
-  userId: string;
-  totalIssuesCreated: number;
-  totalIssuesAssigned: number;
-  totalIssuesResolved: number;
-  averageResolutionTime: number | null;
-  performanceScore: number;
+  user: {
+    id: string;
+    fullName: string;
+    role: string;
+    isActive: boolean;
+  };
+  statistics: {
+    totalAssigned: number;
+    activeIssues: number;
+    resolvedIssues: number;
+    avgResolutionDays: number;
+    resolutionRate: number;
+  };
 }
 
 interface ZoneDetail {
@@ -113,18 +107,6 @@ interface WardInZone {
   totalIssues: number;
 }
 
-interface WardIssue {
-  id: string;
-  ticketNumber: string;
-  status: string;
-  priority: string;
-  category: string;
-  department: string;
-  assignee: string | null;
-  slaBreached: boolean;
-  updatedAt: string;
-}
-
 interface AdminState {
   users: User[];
   departments: Department[];
@@ -133,11 +115,9 @@ interface AdminState {
   wardsByZone: Record<string, WardInZone[]>;
   currentZoneDetail: ZoneDetail | null;
   currentWardDetail: WardDetail | null;
-  wardIssues: WardIssue[];
   userStatistics: UserStatistics | null;
   loading: boolean;
   loadingWards: boolean;
-  loadingIssues: boolean;
   error: string | null;
 }
 
@@ -180,11 +160,9 @@ const initialState: AdminState = {
   wardsByZone: {},
   currentZoneDetail: null,
   currentWardDetail: null,
-  wardIssues: [],
   userStatistics: null,
   loading: false,
   loadingWards: false,
-  loadingIssues: false,
   error: null,
 };
 
@@ -397,19 +375,6 @@ export const fetchUserStatistics = createAsyncThunk(
   }
 );
 
-// Get ward issues
-export const getWardIssues = createAsyncThunk(
-  "admin/getWardIssues",
-  async ({ wardId, filters }: { wardId: string; filters?: any }, { rejectWithValue }) => {
-    try {
-      const response = await axiosInstance.get(`/admin/wards/${wardId}/issues`, { params: filters });
-      return response.data.data;
-    } catch (error: unknown) {
-      return rejectWithValue(handleAxiosError(error, "Failed to fetch ward issues"));
-    }
-  }
-);
-
 
 // Admin slice
 const adminSlice = createSlice({
@@ -574,20 +539,6 @@ const adminSlice = createSlice({
         state.userStatistics = action.payload;
       })
       .addCase(fetchUserStatistics.rejected, (state, action) => {
-        state.error = action.payload as string;
-      });
-
-    // Get ward issues
-    builder
-      .addCase(getWardIssues.pending, (state) => {
-        state.loadingIssues = true;
-      })
-      .addCase(getWardIssues.fulfilled, (state, action) => {
-        state.loadingIssues = false;
-        state.wardIssues = action.payload;
-      })
-      .addCase(getWardIssues.rejected, (state, action) => {
-        state.loadingIssues = false;
         state.error = action.payload as string;
       });
   }

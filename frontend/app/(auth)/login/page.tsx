@@ -27,6 +27,14 @@ export default function LoginPage() {
     password: ""
   });
 
+  // Clear error when user types
+  const handleInputChange = (field: 'email' | 'password', value: string) => {
+    if (authError) {
+      dispatch(clearAuthError());
+    }
+    setCredentials({ ...credentials, [field]: value });
+  };
+
   useEffect(() => {
     // Redirect if user is already logged in
     if (user) {
@@ -52,7 +60,8 @@ export default function LoginPage() {
         router.push(dashboardUrl);
       }
     } catch (error) {
-      // Error is handled by Redux
+      // Keep form data on error - don't clear credentials
+      console.error('Login failed:', error);
     }
   }
 
@@ -141,7 +150,7 @@ export default function LoginPage() {
                       type="email"
                       placeholder="engineer@vmc.gov.in"
                       value={credentials.email}
-                      onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
                       className="h-12 bg-white border-2 border-gray-200 focus:border-blue-500 transition-all rounded-xl text-gray-900 placeholder:text-gray-500"
                       required
                       autoFocus
@@ -159,7 +168,7 @@ export default function LoginPage() {
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter your password"
                         value={credentials.password}
-                        onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                        onChange={(e) => handleInputChange('password', e.target.value)}
                         className="h-12 bg-white border-2 border-gray-200 focus:border-blue-500 transition-all rounded-xl pr-12 text-gray-900 placeholder:text-gray-500"
                         autoComplete="current-password"
                         data-1p-ignore

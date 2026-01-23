@@ -3,6 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +23,29 @@ import {
   Mail,
   MoreVertical,
   Eye,
-  ExternalLink
+  ExternalLink,
+  BarChart3,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { fetchIssues } from "@/redux";
 import ViewUserDialog from "@/components/admin/ViewUserDialog";
 import IssueDetailModal from "@/components/admin/IssueDetailModal";
+import UserStatsDialog from "@/components/admin/UserStatsDialog";
+import VerificationButton from "@/components/zone/VerificationButton";
+import ReopenButton from "@/components/zone/ReopenButton";
+import AllEngineersDialog from "@/components/zone/AllEngineersDialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
 
 interface WardDetailProps {
   wardDetail: {
@@ -60,34 +79,86 @@ interface WardDetailProps {
     };
     avgOpenDays: number;
     oldestOpenDays: number;
-    issues: Array<{
-      id: string;
-      status: string;
-      priority: string;
-      categoryName: string;
-      department: string;
-      createdAt: string;
-      resolvedAt: string | null;
-      slaTargetAt: string | null;
-      priorityWeight: number;
-      hasBeforeImage: boolean;
-      hasAfterImage: boolean;
-    }>;
   };
+  wardId: string;
 }
 
-export default function WardDetail({ wardDetail }: WardDetailProps) {
+export default function WardDetail({ wardDetail, wardId }: WardDetailProps) {
+  const dispatch = useAppDispatch();
+  const { issues, loading: issuesLoading, pagination } = useAppSelector((state) => state.issues);
+  const { user } = useAppSelector(state => state.userState);
+  
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [selectedUserName, setSelectedUserName] = useState<string | undefined>(undefined);
+  
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch issues when component mounts or filters change
+  useEffect(() => {
+    const params: any = {
+      wardId,
+      page: currentPage,
+      pageSize,
+    };
+    
+    if (statusFilter && statusFilter !== "all") params.status = statusFilter;
+    if (priorityFilter && priorityFilter !== "all") params.priority = priorityFilter;
+    if (debouncedSearchQuery.trim()) params.q = debouncedSearchQuery.trim();
+    
+    dispatch(fetchIssues(params));
+  }, [dispatch, wardId, currentPage, statusFilter, priorityFilter, debouncedSearchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, priorityFilter, debouncedSearchQuery]);
 
   const handleViewUser = (userId: string) => {
     setSelectedUserId(userId);
     setShowViewDialog(true);
   };
 
+  const handleViewStats = (userId: string, userName: string) => {
+    setSelectedUserId(userId);
+    setSelectedUserName(userName);
+    setShowStatsDialog(true);
+  };
+
   const handleIssueClick = (issueId: string) => {
     setSelectedIssueId(issueId);
+  };
+
+  const handleIssueStatusUpdate = () => {
+    // Refresh issues list after status update
+    const params: any = {
+      wardId,
+      page: currentPage,
+      pageSize,
+    };
+    
+    if (statusFilter && statusFilter !== "all") params.status = statusFilter;
+    if (priorityFilter && priorityFilter !== "all") params.priority = priorityFilter;
+    if (debouncedSearchQuery.trim()) params.q = debouncedSearchQuery.trim();
+    
+    dispatch(fetchIssues(params));
   };
 
   const getStatusColor = (status: string) => {
@@ -236,12 +307,21 @@ export default function WardDetail({ wardDetail }: WardDetailProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base sm:text-lg">Ward Engineers</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base sm:text-lg">Ward Engineers</CardTitle>
+              {wardDetail.engineers && wardDetail.engineers.length > 3 && (
+                <AllEngineersDialog 
+                  engineers={wardDetail.engineers}
+                  onViewProfile={handleViewUser}
+                  onViewStats={handleViewStats}
+                />
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {wardDetail.engineers && wardDetail.engineers.length > 0 ? (
               <div className="space-y-3">
-                {wardDetail.engineers.map((engineer) => (
+                {wardDetail.engineers.slice(0, 3).map((engineer) => (
                   <div key={engineer.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -275,17 +355,28 @@ export default function WardDetail({ wardDetail }: WardDetailProps) {
                               <Eye className="mr-2 h-4 w-4" />
                               View Profile
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewStats(engineer.id, engineer.fullName)}>
+                              <BarChart3 className="mr-2 h-4 w-4" />
+                              View Stats
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
                     </div>
                   </div>
                 ))}
+                {wardDetail.engineers.length > 3 && (
+                  <div className="text-center pt-2">
+                    <p className="text-sm text-gray-500">
+                      Showing 3 of {wardDetail.engineers.length} engineers
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500">No engineers assigned</p>
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No engineers assigned</p>
               </div>
             )}
           </CardContent>
@@ -313,57 +404,177 @@ export default function WardDetail({ wardDetail }: WardDetailProps) {
         </Card>
       </div>
 
-      {/* Recent Issues */}
+      {/* Ward Issues with Filters and Pagination */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg">Latest Issues</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardTitle className="text-base sm:text-lg">Ward Issues</CardTitle>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by ticket number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-full sm:w-48"
+                />
+              </div>
+              
+              {/* Status Filter */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                  <SelectItem value="RESOLVED">Resolved</SelectItem>
+                  <SelectItem value="VERIFIED">Verified</SelectItem>
+                  <SelectItem value="REOPENED">Reopened</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Priority Filter */}
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priority</SelectItem>
+                  <SelectItem value="CRITICAL">Critical</SelectItem>
+                  <SelectItem value="HIGH">High</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="LOW">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {wardDetail.issues && wardDetail.issues.length > 0 ? (
-            <div className="space-y-3">
-              {wardDetail.issues.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10).map((issue) => (
-                <div key={issue.id} className="p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <Badge className={`text-xs ${getStatusColor(issue.status)}`}>
-                          {issue.status}
-                        </Badge>
-                        <Badge className={`text-xs ${getPriorityColor(issue.priority)}`}>
-                          {issue.priority}
-                        </Badge>
+          {issuesLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p className="text-muted-foreground">Loading issues...</p>
+            </div>
+          ) : issues && issues.length > 0 ? (
+            <>
+              <div className="space-y-3">
+                {issues.map((issue) => (
+                  <div key={issue.id} className="p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <Badge className={`text-xs ${getStatusColor(issue.status)}`}>
+                            {issue.status.replace('_', ' ')}
+                          </Badge>
+                          <Badge className={`text-xs ${getPriorityColor(issue.priority)}`}>
+                            {issue.priority}
+                          </Badge>
+                          <span className="text-xs text-gray-500">#{issue.ticketNumber}</span>
+                        </div>
+                        <p className="font-medium text-gray-900 text-sm sm:text-base">
+                          {issue.category?.name || 'Unknown Category'}
+                        </p>
+                        <p className="text-xs sm:text-sm text-gray-600">
+                          {issue.category?.department || 'Unknown Department'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Created: {new Date(issue.createdAt).toLocaleDateString()}
+                          {issue.assignee && (
+                            <span className="ml-2">• Assigned to: {issue.assignee.fullName}</span>
+                          )}
+                        </p>
                       </div>
-                      <p className="font-medium text-gray-900 text-sm sm:text-base">{issue.categoryName}</p>
-                      <p className="text-xs sm:text-sm text-gray-600">{issue.department}</p>
-                      <p className="text-xs text-gray-500">
-                        Created: {new Date(issue.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {issue.hasBeforeImage && (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                      )}
-                      {issue.hasAfterImage && (
-                        <CheckCircle className="w-4 h-4 text-blue-600" />
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleIssueClick(issue.id)}
-                        className="flex items-center gap-1 text-xs"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {/* Zone Officer Verification Buttons */}
+                        {user?.role === 'ZONE_OFFICER' && issue.status === 'RESOLVED' && (
+                          <VerificationButton
+                            issueId={issue.id}
+                            currentStatus={issue.status}
+                            hasAfterImages={issue.media?.some(m => m.type === 'AFTER') || false}
+                            onStatusUpdate={handleIssueStatusUpdate}
+                          />
+                        )}
+                        
+                        {/* Zone Officer Reopen Button for Verified Issues */}
+                        {user?.role === 'ZONE_OFFICER' && issue.status === 'VERIFIED' && (
+                          <ReopenButton
+                            issueId={issue.id}
+                            onSuccess={handleIssueStatusUpdate}
+                          />
+                        )}
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleIssueClick(issue.id)}
+                          className="flex items-center gap-1 text-xs"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View
+                        </Button>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+              
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-gray-600">
+                    Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} issues
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={pagination.page <= 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                      disabled={pagination.page >= pagination.totalPages}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8">
-              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No issues found</p>
+              <AlertTriangle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No issues found</p>
+              {(statusFilter && statusFilter !== "all" || priorityFilter && priorityFilter !== "all" || searchQuery) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setPriorityFilter("all");
+                    setSearchQuery("");
+                    setDebouncedSearchQuery("");
+                    setCurrentPage(1);
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
@@ -374,6 +585,14 @@ export default function WardDetail({ wardDetail }: WardDetailProps) {
         open={showViewDialog}
         onClose={() => setShowViewDialog(false)}
         userId={selectedUserId}
+      />
+
+      {/* User Stats Dialog */}
+      <UserStatsDialog
+        open={showStatsDialog}
+        onClose={() => setShowStatsDialog(false)}
+        userId={selectedUserId}
+        userName={selectedUserName}
       />
 
       {/* Issue Detail Modal */}

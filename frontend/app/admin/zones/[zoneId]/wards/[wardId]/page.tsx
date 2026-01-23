@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Users, AlertTriangle, Clock, TrendingUp, Building, MapPin, ExternalLink, MoreVertical, Eye, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Users, AlertTriangle, Clock, TrendingUp, Building, MapPin, ExternalLink, MoreVertical, Eye, Phone, Mail, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,40 +14,47 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { fetchWardDetail, getWardIssues, clearAdminError } from "@/redux";
+import { fetchWardDetail, clearAdminError } from "@/redux";
 import { ErrorState, EmptyState } from "@/components/admin/ErrorBoundary";
 import IssueDetailModal from "@/components/admin/IssueDetailModal";
 import ViewUserDialog from "@/components/admin/ViewUserDialog";
+import UserStatsDialog from "@/components/admin/UserStatsDialog";
 
 export default function WardDetailPage() {
   const params = useParams();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { currentWardDetail, wardIssues, loading, loadingIssues, error } = useAppSelector(state => state.admin);
+  const { currentWardDetail, loading, error } = useAppSelector(state => state.admin);
   
   const wardId = params.wardId as string;
   const zoneId = params.zoneId as string;
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [selectedUserName, setSelectedUserName] = useState<string | undefined>(undefined);
 
   const handleViewUser = (userId: string) => {
     setSelectedUserId(userId);
     setShowViewDialog(true);
   };
 
+  const handleViewStats = (userId: string, userName: string) => {
+    setSelectedUserId(userId);
+    setSelectedUserName(userName);
+    setShowStatsDialog(true);
+  };
+
   useEffect(() => {
     if (wardId) {
       dispatch(clearAdminError());
       dispatch(fetchWardDetail(wardId));
-      dispatch(getWardIssues({ wardId, filters: {} }));
     }
   }, [dispatch, wardId]);
 
   const handleRetry = () => {
     dispatch(clearAdminError());
     dispatch(fetchWardDetail(wardId));
-    dispatch(getWardIssues({ wardId, filters: {} }));
   };
 
   const handleIssueClick = (issueId: string) => {
@@ -300,6 +307,10 @@ export default function WardDetailPage() {
                               <Eye className="mr-2 h-4 w-4" />
                               View Profile
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewStats(engineer.id, engineer.fullName)}>
+                              <BarChart3 className="mr-2 h-4 w-4" />
+                              View Stats
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -338,61 +349,7 @@ export default function WardDetailPage() {
         </Card>
       </div>
 
-      {/* Recent Issues */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg">Latest Issues</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingIssues ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : wardIssues.length === 0 ? (
-            <div className="text-center py-8">
-              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No issues found</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {[...wardIssues].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 10).map((issue) => (
-                <div key={issue.id} className="p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <Badge className={`text-xs ${getStatusColor(issue.status)}`}>
-                          {issue.status.replace('_', ' ')}
-                        </Badge>
-                        <Badge className={`text-xs ${getPriorityColor(issue.priority)}`}>
-                          {issue.priority || 'N/A'}
-                        </Badge>
-                      </div>
-                      <p className="font-medium text-gray-900 text-sm sm:text-base">{issue.category || 'N/A'}</p>
-                      <p className="text-xs sm:text-sm text-gray-600">{issue.department?.replace('_', ' ') || 'N/A'}</p>
-                      <p className="text-xs text-gray-500">
-                        Updated: {formatDate(issue.updatedAt)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleIssueClick(issue.id)}
-                        className="flex items-center gap-1 text-xs"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
 
       {/* Issue Detail Modal */}
       {selectedIssueId && (
@@ -408,6 +365,14 @@ export default function WardDetailPage() {
         open={showViewDialog}
         onClose={() => setShowViewDialog(false)}
         userId={selectedUserId}
+      />
+
+      {/* User Stats Dialog */}
+      <UserStatsDialog
+        open={showStatsDialog}
+        onClose={() => setShowStatsDialog(false)}
+        userId={selectedUserId}
+        userName={selectedUserName}
       />
     </div>
   );

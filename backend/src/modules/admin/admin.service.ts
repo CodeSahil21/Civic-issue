@@ -10,8 +10,6 @@ import {
   ZoneDetail,
   WardOverview,
   WardDetailPayload,
-  WardIssueListItem,
-  WardIssueFilters,
   UserUpdateData,
   UserStatistics,
   ReassignWorkResponse,
@@ -1000,41 +998,8 @@ export class AdminService {
           0
         ) AS "oldestOpenDays",
 
-        -- Top issues list (include category department)
-        (
-          SELECT COALESCE(jsonb_agg(x ORDER BY x."priorityWeight" DESC, x."createdAt" DESC), '[]'::jsonb)
-          FROM (
-            SELECT
-              i2."id"                                              AS "id",
-              i2."status"                                          AS "status",
-              i2."priority"                                        AS "priority",
-              ic."name"                                            AS "categoryName",
-              ic."department"                                      AS "department",
-              i2."created_at"                                      AS "createdAt",
-              i2."resolved_at"                                     AS "resolvedAt",
-              i2."sla_target_at"                                   AS "slaTargetAt",
-              CASE i2."priority"
-                WHEN 'CRITICAL' THEN 4
-                WHEN 'HIGH'     THEN 3
-                WHEN 'MEDIUM'   THEN 2
-                WHEN 'LOW'      THEN 1
-                ELSE 0
-              END                                                  AS "priorityWeight",
-              EXISTS (
-                SELECT 1 FROM "issue_media" m
-                WHERE m."issue_id" = i2."id" AND m."type" = 'BEFORE'
-              )                                                    AS "hasBeforeImage",
-              EXISTS (
-                SELECT 1 FROM "issue_media" m
-                WHERE m."issue_id" = i2."id" AND m."type" = 'AFTER'
-              )                                                    AS "hasAfterImage"
-            FROM "issues" i2
-            LEFT JOIN "issue_categories" ic ON ic."id" = i2."category_id"
-            WHERE i2."ward_id" = w."id" AND i2."deleted_at" IS NULL
-            ORDER BY "priorityWeight" DESC, i2."created_at" DESC
-            LIMIT 50
-          ) AS x
-        ) AS "issues"
+        -- Top issues list (remove this section to optimize response)
+        '[]'::jsonb AS "issues"
 
       FROM "wards" w
       JOIN "zones" z ON z."id" = w."zone_id"
@@ -1052,7 +1017,7 @@ export class AdminService {
 
     const r = rows[0];
     const engineers = Array.isArray(r.engineers) ? r.engineers : [];
-    const issues = Array.isArray(r.issues) ? r.issues : [];
+    const issues = []; // Always empty since we fetch issues separately
 
     return {
       wardNumber: Number(r.wardNumber ?? 0),
@@ -1089,62 +1054,7 @@ export class AdminService {
       avgOpenDays: Number(r.avgOpenDays ?? 0),
       oldestOpenDays: Math.round(Number(r.oldestOpenDays ?? 0)),
 
-      issues: issues.map((it: any) => ({
-        id: String(it.id),
-        status: it.status,
-        priority: it.priority ?? null,
-        categoryName: it.categoryName ?? null,
-        department: it.department ?? null,
-        createdAt: it.createdAt,
-        resolvedAt: it.resolvedAt ?? null,
-        slaTargetAt: it.slaTargetAt ?? null,
-        priorityWeight: Number(it.priorityWeight ?? 0),
-        hasBeforeImage: Boolean(it.hasBeforeImage ?? false),
-        hasAfterImage: Boolean(it.hasAfterImage ?? false),
-      })),
+      issues: [], // Always empty array since we fetch issues separately
     };
-  }
-
-
-  static async getWardIssues(
-    wardId: string,
-    filters: WardIssueFilters
-  ): Promise<WardIssueListItem[]> {
-    const { status, priority, categoryId } = filters ?? {};
-
-    const rows = await prisma.$queryRawUnsafe(`
-      SELECT
-        i."id"                               AS "id",
-        i."ticket_number"                    AS "ticketNumber",
-        i."status"                           AS "status",
-        i."priority"                         AS "priority",
-        ic."name"                            AS "category",
-        ic."department"                      AS "department",
-        a."full_name"                        AS "assignee",
-        (i."resolved_at" IS NULL AND i."sla_target_at" IS NOT NULL AND i."sla_target_at" < NOW())
-                                             AS "slaBreached",
-        i."updated_at"                       AS "updatedAt"
-      FROM "issues" i
-      LEFT JOIN "issue_categories" ic ON ic."id" = i."category_id"
-      LEFT JOIN "users" a ON a."id" = i."assignee_id"
-      WHERE i."ward_id" = $1
-        AND i."deleted_at" IS NULL
-        ${status ? `AND i."status" = '${status}'` : ''}
-        ${priority ? `AND i."priority" = '${priority}'` : ''}
-        ${categoryId ? `AND i."category_id" = '${categoryId}'` : ''}
-      ORDER BY i."updated_at" DESC;
-    `, wardId) as any[];
-
-    return (rows ?? []).map((r) => ({
-      id: String(r.id),
-      ticketNumber: r.ticketNumber ?? null,
-      status: r.status,
-      priority: r.priority ?? null,
-      category: r.category ?? null,
-      department: r.department ?? null,
-      assignee: r.assignee ?? null,
-      slaBreached: Boolean(r.slaBreached),
-      updatedAt: new Date(r.updatedAt).toISOString(),
-    }));
   }
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAppSelector, useAppDispatch } from "@/redux/hooks";
 import { logoutUser } from "@/redux/slices/authSlice";
 
@@ -73,7 +74,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
               <div className="hidden md:flex items-center gap-2 text-white">
                 <User className="w-4 h-4" />
                 <span className="text-sm font-medium truncate max-w-32">{user.fullName}</span>
-                <span className="text-xs text-blue-200">({user.role})</span>
+                <Badge variant="secondary" className="text-xs">
+                  {user.role}
+                </Badge>
               </div>
             )}
             

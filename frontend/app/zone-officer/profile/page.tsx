@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Phone, MapPin, Building, Shield } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { User, Mail, Phone, MapPin, Building, Shield, AlertTriangle } from "lucide-react";
 import { useAppSelector } from "@/redux/hooks";
 
 export default function ProfilePage() {
@@ -11,9 +12,12 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <div className="p-6">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <p className="text-gray-800">No user data available</p>
-        </div>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No user data available
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

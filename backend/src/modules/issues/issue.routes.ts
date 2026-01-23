@@ -13,6 +13,7 @@ import {
   addCommentWithParamsSchema,
   reassignIssueWithParamsSchema,
   verifyResolutionWithParamsSchema,
+  reopenIssueWithParamsSchema,
   statsQuerySchema,
   analyzeImageSchema
 } from "./issue.schema";
@@ -98,6 +99,14 @@ router.patch(
   requireRole(["ZONE_OFFICER", "SUPER_ADMIN"]),
   validateRequest(verifyResolutionWithParamsSchema, 'all'),
   IssuesController.verifyResolution
+);
+
+// Reopen verified issue
+router.patch(
+  "/:issueId/reopen",
+  requireRole(["ZONE_OFFICER", "SUPER_ADMIN"]),
+  validateRequest(reopenIssueWithParamsSchema, 'all'),
+  IssuesController.reopenIssue
 );
 
 // ============= IMAGE UPLOAD ROUTES =============

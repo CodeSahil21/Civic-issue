@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchIssueById, clearIssuesError } from "@/redux";
+import StatusUpdateButton from "@/components/ward/StatusUpdateButton";
+import VerificationButton from "@/components/zone/VerificationButton";
+import ReopenButton from "@/components/zone/ReopenButton";
 
 interface IssueDetailModalProps {
   isOpen: boolean;
@@ -17,6 +20,7 @@ interface IssueDetailModalProps {
 export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDetailModalProps) {
   const dispatch = useAppDispatch();
   const { currentIssue, loading } = useAppSelector(state => state.issues);
+  const { user } = useAppSelector(state => state.userState);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +28,7 @@ export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDeta
       dispatch(clearIssuesError());
       dispatch(fetchIssueById(issueId));
     }
-  }, [dispatch, issueId, isOpen, currentIssue]);
+  }, [dispatch, issueId, isOpen ]);
 
 
 
@@ -48,6 +52,13 @@ export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDeta
     }
   };
 
+  const handleStatusUpdate = () => {
+    // Status updates are handled by Redux actions automatically
+  };
+
+  const hasAfterImages = currentIssue?.media?.some(m => m.type === 'AFTER') || false;
+  const canUpdateStatus = user?.role === 'WARD_ENGINEER' && currentIssue?.assignee?.id === user?.id;
+  const canVerify = user?.role === 'ZONE_OFFICER';
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'OPEN': return 'bg-red-100 text-red-800';
@@ -238,7 +249,35 @@ export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDeta
 
           {/* Footer */}
           <div className="p-6 border-t border-gray-200 bg-white rounded-b-xl">
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                {/* Ward Engineer Status Buttons */}
+                {canUpdateStatus && currentIssue && (
+                  <StatusUpdateButton
+                    issueId={currentIssue.id}
+                    currentStatus={currentIssue.status}
+                  />
+                )}
+                
+                {/* Zone Officer Verification Buttons */}
+                {canVerify && currentIssue && currentIssue.status === 'RESOLVED' && (
+                  <VerificationButton
+                    issueId={currentIssue.id}
+                    currentStatus={currentIssue.status}
+                    hasAfterImages={hasAfterImages}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                )}
+                
+                {/* Zone Officer Reopen Button */}
+                {canVerify && currentIssue && currentIssue.status === 'VERIFIED' && (
+                  <ReopenButton
+                    issueId={currentIssue.id}
+                    onSuccess={handleStatusUpdate}
+                  />
+                )}
+              </div>
+              
               <Button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2">
                 Close
               </Button>
@@ -249,22 +288,22 @@ export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDeta
 
       {/* Image Preview Modal */}
       {selectedImage && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-60 p-4">
-          <div className="relative max-w-6xl max-h-full bg-white rounded-lg overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-md flex items-center justify-center z-60 p-4" onClick={() => setSelectedImage(null)}>
+          <div className="relative max-w-6xl max-h-full" onClick={(e) => e.stopPropagation()}>
             <div className="absolute top-4 right-4 z-10">
               <Button
                 variant="ghost"
                 size="sm"
-                className="bg-white/90 hover:bg-white text-gray-700 shadow-lg"
+                className="bg-white/90 hover:bg-white text-gray-700 shadow-lg rounded-full w-10 h-10 p-0"
                 onClick={() => setSelectedImage(null)}
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </Button>
             </div>
             <img
               src={selectedImage}
               alt="Full size"
-              className="max-w-full max-h-[90vh] object-contain"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
           </div>
         </div>

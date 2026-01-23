@@ -155,6 +155,33 @@ export class IssuesController {
     );
   });
 
+  static reopenIssue = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const { comment } = req.body;
+    const issueIdStr = Array.isArray(req.params.issueId) ? req.params.issueId[0] : req.params.issueId;
+
+    const result = await IssuesService.reopenIssue({
+      issueId: issueIdStr,
+      reopenedBy: userId,
+      comment
+    });
+
+    // Delete after images from Cloudinary (outside transaction)
+    if (result.deletedImages && result.deletedImages.length > 0) {
+      try {
+        const imageUrls = result.deletedImages.map(img => img.url);
+        await IssueUploadService.deleteMultipleImages(imageUrls);
+        console.log(`✅ Deleted ${imageUrls.length} after images from Cloudinary`);
+      } catch (error) {
+        console.error('❌ Error deleting images from Cloudinary:', error);
+      }
+    }
+
+    res.status(200).json(
+      new ApiResponse(200, result.updated, "Issue reopened successfully")
+    );
+  });
+
   // Upload images for issue creation (BEFORE images)
   static uploadBeforeImages = asyncHandler(async (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[];

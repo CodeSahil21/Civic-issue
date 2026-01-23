@@ -12,6 +12,7 @@ import type {
   AddAfterMediaInput 
 } from "../../types";
 import { EmailService } from "../../services/email/emailService";
+import { IssueUploadService } from "./issue.upload.service";
 
 
 const SYSTEM_COUNTER_KEY = (year: number) => `ticket_counter_${year}`;
@@ -450,7 +451,14 @@ export class IssuesService {
     return prisma.$transaction(async (tx) => {
       const issue = await tx.issue.findFirst({
         where: { id: args.issueId, deletedAt: null },
-        select: { id: true, status: true, assigneeId: true }
+        select: { 
+          id: true, 
+          status: true, 
+          assigneeId: true,
+          media: {
+            select: { type: true }
+          }
+        }
       });
 
       if (!issue) throw new ApiError(404, "Issue not found");
@@ -623,12 +631,24 @@ export class IssuesService {
     return prisma.$transaction(async (tx) => {
       const issue = await tx.issue.findFirst({
         where: { id: args.issueId, deletedAt: null },
-        select: { id: true, status: true }
+        select: { 
+          id: true, 
+          status: true,
+          media: {
+            select: { type: true }
+          }
+        }
       });
 
       if (!issue) throw new ApiError(404, "Issue not found");
       if (issue.status !== "RESOLVED") {
         throw new ApiError(400, "Only resolved issues can be verified");
+      }
+
+      // Check if after images are uploaded
+      const hasAfterImages = issue.media.some(m => m.type === 'AFTER');
+      if (!hasAfterImages) {
+        throw new ApiError(400, "Cannot verify issue without after images");
       }
 
       const newStatus = args.approved ? "VERIFIED" : "REOPENED";
@@ -664,6 +684,69 @@ export class IssuesService {
       });
 
       return updated;
+    });
+  }
+
+  // Reopen verified issue
+  static async reopenIssue(args: { issueId: string; reopenedBy: string; comment?: string }) {
+    return prisma.$transaction(async (tx) => {
+      const issue = await tx.issue.findFirst({
+        where: { id: args.issueId, deletedAt: null },
+        include: {
+          media: {
+            select: { id: true, type: true, url: true }
+          }
+        }
+      });
+
+      if (!issue) throw new ApiError(404, "Issue not found");
+      if (issue.status !== "VERIFIED") {
+        throw new ApiError(400, "Only verified issues can be reopened");
+      }
+
+      // Get after images for deletion
+      const afterImages = issue.media.filter(m => m.type === 'AFTER');
+      const afterImageIds = afterImages.map(m => m.id);
+      
+      // Delete after images from database
+      if (afterImageIds.length > 0) {
+        await tx.issueMedia.deleteMany({
+          where: { id: { in: afterImageIds } }
+        });
+      }
+
+      const updated = await tx.issue.update({
+        where: { id: args.issueId },
+        data: {
+          status: "ASSIGNED",
+          resolvedAt: null,
+          verifiedAt: null,
+          history: {
+            create: {
+              changedBy: args.reopenedBy,
+              changeType: "REOPEN",
+              oldValue: { status: "VERIFIED" } as any,
+              newValue: { status: "ASSIGNED", comment: args.comment, afterImagesDeleted: afterImageIds.length } as any
+            }
+          },
+          ...(args.comment ? {
+            comments: {
+              create: {
+                userId: args.reopenedBy,
+                text: args.comment
+              }
+            }
+          } : {})
+        },
+        include: {
+          category: true,
+          ward: { include: { zone: true } },
+          assignee: { select: { id: true, fullName: true, role: true } },
+          media: true
+        }
+      });
+
+      return { updated, deletedImages: afterImages };
     });
   }
 }

@@ -6,6 +6,8 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchWardDetail } from "@/redux";
 import WardDetail from "@/components/zone/WardDetail";
 import { WardDetailSkeleton } from "@/components/ui/loading-skeletons";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 export default function WardDetailPage() {
   const params = useParams();
@@ -26,9 +28,12 @@ export default function WardDetailPage() {
   if (error) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Error: {error}</p>
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Error: {error}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -36,12 +41,15 @@ export default function WardDetailPage() {
   if (!currentWardDetail) {
     return (
       <div className="p-6">
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <p className="text-gray-800">Ward not found</p>
-        </div>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Ward not found
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  return <WardDetail wardDetail={currentWardDetail} />;
+  return <WardDetail wardDetail={currentWardDetail} wardId={wardId} />;
 }

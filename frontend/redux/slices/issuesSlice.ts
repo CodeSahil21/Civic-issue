@@ -145,6 +145,17 @@ interface AddCommentData {
   comment: string;
 }
 
+interface VerifyResolutionData {
+  issueId: string;
+  approved: boolean;
+  comment?: string;
+}
+
+interface ReopenIssueData {
+  issueId: string;
+  comment?: string;
+}
+
 // Initial state
 const initialState: IssuesState = {
   issues: [],
@@ -310,6 +321,37 @@ export const addAfterMedia = createAsyncThunk(
   }
 );
 
+// Verify or reject resolved issue
+export const verifyResolution = createAsyncThunk(
+  "issues/verifyResolution",
+  async (data: VerifyResolutionData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.patch(`/issues/${data.issueId}/verify`, {
+        approved: data.approved,
+        comment: data.comment
+      });
+      return response.data.data;
+    } catch (error: unknown) {
+      return rejectWithValue(handleAxiosError(error, "Failed to verify resolution"));
+    }
+  }
+);
+
+// Reopen verified issue
+export const reopenIssue = createAsyncThunk(
+  "issues/reopenIssue",
+  async (data: ReopenIssueData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.patch(`/issues/${data.issueId}/reopen`, {
+        comment: data.comment
+      });
+      return response.data.data;
+    } catch (error: unknown) {
+      return rejectWithValue(handleAxiosError(error, "Failed to reopen issue"));
+    }
+  }
+);
+
 // Delete image
 export const deleteImage = createAsyncThunk(
   "issues/deleteImage",
@@ -462,6 +504,38 @@ const issuesSlice = createSlice({
         }
       })
       .addCase(addAfterMedia.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
+
+    // Verify resolution
+    builder
+      .addCase(verifyResolution.fulfilled, (state, action) => {
+        const updatedIssue = action.payload;
+        const index = state.issues.findIndex(issue => issue.id === updatedIssue.id);
+        if (index !== -1) {
+          state.issues[index] = updatedIssue;
+        }
+        if (state.currentIssue?.id === updatedIssue.id) {
+          state.currentIssue = updatedIssue;
+        }
+      })
+      .addCase(verifyResolution.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
+
+    // Reopen issue
+    builder
+      .addCase(reopenIssue.fulfilled, (state, action) => {
+        const updatedIssue = action.payload;
+        const index = state.issues.findIndex(issue => issue.id === updatedIssue.id);
+        if (index !== -1) {
+          state.issues[index] = updatedIssue;
+        }
+        if (state.currentIssue?.id === updatedIssue.id) {
+          state.currentIssue = updatedIssue;
+        }
+      })
+      .addCase(reopenIssue.rejected, (state, action) => {
         state.error = action.payload as string;
       });
   }

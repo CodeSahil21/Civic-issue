@@ -58,20 +58,6 @@ export interface WardEngineer {
   department: Department | null; 
 }
 
-export interface WardIssueItem {
-  id: string;
-  status: "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "RESOLVED" | "VERIFIED" | "REOPENED" | "REJECTED";
-  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
-  categoryName: string | null;
-  department: Department | null;  
-  createdAt: string;     // ISO
-  resolvedAt: string | null;   // ISO
-  slaTargetAt: string | null;  // ISO
-  priorityWeight: number;
-  hasBeforeImage: boolean;
-  hasAfterImage: boolean;
-}
-
 export interface WardDetailPayload {
   wardNumber: number;
   wardName: string;
@@ -104,38 +90,9 @@ export interface WardDetailPayload {
   avgOpenDays: number;    // rounded to 2 decimals
   oldestOpenDays: number; // integer days
 
-  // Issues list (top 50 by priority then recency)
-  issues: WardIssueItem[];
+  // Issues list (always empty - fetched separately)
+  issues: [];
 }  
-
-export type WardIssueStatus =
-  | "OPEN"
-  | "ASSIGNED"
-  | "IN_PROGRESS"
-  | "RESOLVED"
-  | "VERIFIED"
-  | "REOPENED"
-  | "REJECTED";
-
-export type WardIssuePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-
-export interface WardIssueFilters {
-  status?: WardIssueStatus;
-  priority?: WardIssuePriority;
-  categoryId?: string; // UUID
-}
-
-export interface WardIssueListItem {
-  id: string;
-  ticketNumber: string | null;
-  status: WardIssueStatus;
-  priority: WardIssuePriority | null;
-  category: string | null;
-  department: Department | null;
-  assignee: string | null;
-  slaBreached: boolean;
-  updatedAt: string; // ISO string
-}
 
 // User Statistics Types
 export interface UserStatistics {

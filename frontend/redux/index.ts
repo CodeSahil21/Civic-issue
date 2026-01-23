@@ -22,7 +22,8 @@ export {
   forgotPassword,
   verifyOtp,
   resetPassword,
-  clearError as clearAuthError,
+  clearAuthError,
+  clearError as clearAuthErrorLegacy,
   clearAuth,
   initializeAuth,
 } from './slices/authSlice';
@@ -38,6 +39,9 @@ export {
   addComment,
   uploadBeforeImages,
   uploadAfterImages,
+  addAfterMedia,
+  verifyResolution,
+  reopenIssue,
   clearError as clearIssuesError,
   setCurrentIssue,
   clearCurrentIssue,
@@ -72,7 +76,6 @@ export {
   fetchWardsForZone, // NEW
   fetchZoneDetail,
   fetchWardDetail,
-  getWardIssues,
   reassignUserWork,
   fetchUserStatistics,
   clearError as clearAdminError,

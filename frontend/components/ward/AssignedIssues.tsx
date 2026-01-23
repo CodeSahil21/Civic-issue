@@ -151,6 +151,7 @@ export default function AssignedIssues({ limit = 10 }: AssignedIssuesProps) {
                     <StatusUpdateButton 
                       issueId={issue.id}
                       currentStatus={issue.status}
+                      hasAfterImages={false}
                       onStatusUpdate={() => dispatch(fetchAssignedIssuesDashboard(limit))}
                     />
                     <Button 

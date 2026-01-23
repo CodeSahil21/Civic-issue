@@ -99,13 +99,6 @@ export default function WardCards({ wards, loading }: WardCardsProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4">
-                <div className="flex items-center gap-2">
-                  <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm text-gray-600">Engineer:</span>
-                  <span className="text-xs sm:text-sm font-medium text-gray-900 truncate">
-                    {ward.engineer || 'Not Assigned'}
-                  </span>
-                </div>
                 
                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <div className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg group-hover:bg-gray-100 transition-colors">

@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { Shield, BarChart3, Menu, X, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import Header from "@/components/zone/Header";
 import ProtectWrapper from "@/components/auth/ProtectWrapper";
 
@@ -49,69 +52,74 @@ export default function ZoneOfficerLayout({
         
         <div className="flex h-[calc(100vh-4rem)] pt-0">
           <div className="hidden lg:block lg:fixed lg:top-16 lg:left-0 lg:bottom-0 lg:w-64 lg:z-10">
-            <div className="h-full bg-white shadow-lg border-r border-gray-200 overflow-y-auto">
-              <nav className="mt-8 px-4">
-                <div className="space-y-2">
-                  {navigation.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                          item.current
-                            ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
-                      >
-                        <Icon className="w-5 h-5" />
-                        {item.name}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </nav>
-            </div>
+            <Card className="h-full rounded-none border-r">
+              <CardContent className="p-0">
+                <nav className="mt-8 px-4">
+                  <div className="space-y-2">
+                    {navigation.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Button
+                          key={item.name}
+                          asChild
+                          variant={item.current ? "default" : "ghost"}
+                          className="w-full justify-start"
+                        >
+                          <Link href={item.href}>
+                            <Icon className="w-5 h-5 mr-3" />
+                            {item.name}
+                          </Link>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </nav>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className={`lg:hidden fixed top-16 left-0 bottom-0 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-30 ${
+          <div className={`lg:hidden fixed top-16 left-0 bottom-0 w-64 bg-background shadow-lg transform transition-transform duration-300 ease-in-out z-30 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
-            <div className="flex items-center justify-between h-20 px-4 border-b border-gray-200 mt-4">
-              <div className="flex items-center gap-2">
-                <Shield className="w-6 h-6 text-blue-600" />
-                <span className="font-semibold text-gray-800">Zone Officer</span>
-              </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-md text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <nav className="mt-8 px-4">
-              <div className="space-y-2">
-                {navigation.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                        item.current
-                          ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                      }`}
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <Icon className="w-5 h-5" />
-                      {item.name}
-                    </Link>
-                  );
-                })}
-              </div>
-            </nav>
+            <Card className="h-full rounded-none">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between h-20 px-4 border-b mt-4">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-6 h-6 text-blue-600" />
+                    <Badge variant="outline">Zone Officer</Badge>
+                  </div>
+                  <Button
+                    onClick={() => setSidebarOpen(false)}
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+                
+                <nav className="mt-8 px-4">
+                  <div className="space-y-2">
+                    {navigation.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Button
+                          key={item.name}
+                          asChild
+                          variant={item.current ? "default" : "ghost"}
+                          className="w-full justify-start"
+                          onClick={() => setSidebarOpen(false)}
+                        >
+                          <Link href={item.href}>
+                            <Icon className="w-5 h-5 mr-3" />
+                            {item.name}
+                          </Link>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </nav>
+              </CardContent>
+            </Card>
           </div>
 
           {sidebarOpen && (

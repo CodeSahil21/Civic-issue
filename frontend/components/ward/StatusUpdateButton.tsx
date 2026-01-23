@@ -7,12 +7,14 @@ import { Play, CheckCircle } from "lucide-react";
 interface StatusUpdateButtonProps {
   issueId: string;
   currentStatus: string;
+  hasAfterImages?: boolean;
   onStatusUpdate?: () => void;
 }
 
 export default function StatusUpdateButton({ 
   issueId, 
   currentStatus, 
+  hasAfterImages = false,
   onStatusUpdate 
 }: StatusUpdateButtonProps) {
   const dispatch = useAppDispatch();
