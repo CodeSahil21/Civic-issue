@@ -42,7 +42,8 @@ interface WardOverviewProps {
 }
 
 export default function WardOverview({ wardDashboard, user }: WardOverviewProps) {
-  if (!wardDashboard) {
+  // Show loading state if user data or ward dashboard is not available
+  if (!wardDashboard || !user || !user.ward) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="animate-pulse space-y-4">
@@ -78,7 +79,7 @@ export default function WardOverview({ wardDashboard, user }: WardOverviewProps)
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
-                Ward {user.ward?.wardNumber} - {user.ward?.name}
+                Ward {user.ward.wardNumber} - {user.ward.name}
               </h1>
               <p className="text-sm sm:text-base text-gray-600">
                 {wardDashboard.department.replace('_', ' ')} Department

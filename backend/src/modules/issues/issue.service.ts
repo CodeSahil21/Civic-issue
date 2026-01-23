@@ -121,40 +121,44 @@ export class IssuesService {
   }
 
   // Get issue statistics
-  static async getIssueStats(filters?: { wardId?: string; zoneId?: string; assigneeId?: string }) {
+  static async getIssueStats(filters?: { wardId?: string; zoneId?: string; assigneeId?: string; reporterId?: string }) {
     const where: Prisma.IssueWhereInput = {
       deletedAt: null,
       ...(filters?.wardId ? { wardId: filters.wardId } : {}),
       ...(filters?.zoneId ? { ward: { zoneId: filters.zoneId } } : {}),
       ...(filters?.assigneeId ? { assigneeId: filters.assigneeId } : {}),
+      ...(filters?.reporterId ? { reporterId: filters.reporterId } : {}),
     };
 
-    const [total, open, assigned, inProgress, resolved, verified, slaBreached] = await Promise.all([
+    const [totalIssues, statusCounts, priorityCounts] = await Promise.all([
       prisma.issue.count({ where }),
-      prisma.issue.count({ where: { ...where, status: 'OPEN' } }),
-      prisma.issue.count({ where: { ...where, status: 'ASSIGNED' } }),
-      prisma.issue.count({ where: { ...where, status: 'IN_PROGRESS' } }),
-      prisma.issue.count({ where: { ...where, status: 'RESOLVED' } }),
-      prisma.issue.count({ where: { ...where, status: 'VERIFIED' } }),
-      prisma.issue.count({
-        where: {
-          ...where,
-          resolvedAt: null,
-          slaTargetAt: { lt: new Date() }
-        }
+      prisma.issue.groupBy({
+        by: ['status'],
+        where,
+        _count: { status: true }
       }),
+      prisma.issue.groupBy({
+        by: ['priority'],
+        where,
+        _count: { priority: true }
+      })
     ]);
 
+    // Convert arrays to objects
+    const issuesByStatus: Record<string, number> = {};
+    statusCounts.forEach(item => {
+      issuesByStatus[item.status] = item._count.status;
+    });
+
+    const issuesByPriority: Record<string, number> = {};
+    priorityCounts.forEach(item => {
+      issuesByPriority[item.priority] = item._count.priority;
+    });
+
     return {
-      total,
-      open,
-      assigned,
-      inProgress,
-      resolved,
-      verified,
-      slaBreached,
-      activeCount: open + assigned + inProgress,
-      completedCount: resolved + verified,
+      totalIssues,
+      issuesByStatus,
+      issuesByPriority
     };
   }
 
@@ -358,16 +362,22 @@ export class IssuesService {
     return prisma.$transaction(async (tx) => {
       const issue = await tx.issue.findFirst({
         where: { id: args.issueId, deletedAt: null },
-        select: { id: true, status: true, assigneeId: true },
+        select: { id: true, status: true, assigneeId: true, reporterId: true },
       });
 
       if (!issue) throw new ApiError(404, "Issue not found");
 
-      // Field worker must be the assignee (admins/engineers can bypass if you want)
+      // Allow access if user is:
+      // 1. The reporter (field worker who created the issue)
+      // 2. The assignee (ward engineer working on it)
+      // 3. Admin/officer roles (can bypass)
       const canBypass =
         args.userRole === "SUPER_ADMIN" || args.userRole === "WARD_ENGINEER" || args.userRole === "ZONE_OFFICER";
+      
+      const isReporter = issue.reporterId === args.userId;
+      const isAssignee = issue.assigneeId === args.userId;
 
-      if (!canBypass && issue.assigneeId !== args.userId) {
+      if (!canBypass && !isReporter && !isAssignee) {
         throw new ApiError(403, "Not allowed to update this issue");
       }
 

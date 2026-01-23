@@ -60,6 +60,13 @@ interface UserState {
   fieldWorkerDashboard: FieldWorkerDashboard | null;
   wardEngineerDashboard: WardEngineerDashboard | null;
   assignedIssuesDashboard: AssignedIssuesDashboard | null;
+  assignedIssuesPaginated: {
+    items: DashboardIssue[];
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  } | null;
   activityLog: ActivityLogItem[];
   loading: boolean;
   error: string | null;
@@ -80,6 +87,7 @@ const initialState: UserState = {
   fieldWorkerDashboard: null,
   wardEngineerDashboard: null,
   assignedIssuesDashboard: null,
+  assignedIssuesPaginated: null,
   activityLog: [],
   loading: false,
   error: null,
@@ -156,10 +164,23 @@ export const fetchActivityLog = createAsyncThunk(
   "user/fetchActivityLog",
   async (limit: number = 20, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get(`/users/activity-log?limit=${limit}`);
+      const response = await axiosInstance.get(`/users/activity?limit=${limit}`);
       return response.data.data.activities;
     } catch (error: unknown) {
       return rejectWithValue(handleAxiosError(error, "Failed to fetch activity log"));
+    }
+  }
+);
+
+// Fetch assigned issues with pagination
+export const fetchAssignedIssuesPaginated = createAsyncThunk(
+  "user/fetchAssignedIssuesPaginated",
+  async ({ page = 1, pageSize = 20 }: { page?: number; pageSize?: number }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(`/users/assigned-issues?page=${page}&pageSize=${pageSize}`);
+      return response.data.data;
+    } catch (error: unknown) {
+      return rejectWithValue(handleAxiosError(error, "Failed to fetch assigned issues"));
     }
   }
 );
@@ -176,6 +197,7 @@ const userSlice = createSlice({
       state.fieldWorkerDashboard = null;
       state.wardEngineerDashboard = null;
       state.assignedIssuesDashboard = null;
+      state.assignedIssuesPaginated = null;
       state.activityLog = [];
     },
   },
@@ -266,6 +288,21 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchActivityLog.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+    // Assigned issues paginated
+    builder
+      .addCase(fetchAssignedIssuesPaginated.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchAssignedIssuesPaginated.fulfilled, (state, action) => {
+        state.loading = false;
+        state.assignedIssuesPaginated = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchAssignedIssuesPaginated.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

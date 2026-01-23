@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Shield, BarChart3, Menu, X, User } from "lucide-react";
+import { Shield, BarChart3, Menu, X, User, FileText, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Header from "@/components/ward/Header";
@@ -23,9 +23,21 @@ export default function WardEngineerLayout({
       current: pathname === "/ward-engineer",
     },
     {
+      name: "Assigned Issues",
+      href: "/ward-engineer/assigned-issues",
+      icon: FileText,
+      current: pathname === "/ward-engineer/assigned-issues",
+    },
+    {
+      name: "Activity",
+      href: "/ward-engineer/activity",
+      icon: Activity,
+      current: pathname === "/ward-engineer/activity",
+    },
+    {
       name: "Profile",
       href: "/ward-engineer/profile",
-      icon: Shield,
+      icon: User,
       current: pathname === "/ward-engineer/profile",
     },
   ];

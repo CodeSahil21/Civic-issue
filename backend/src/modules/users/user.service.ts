@@ -63,18 +63,21 @@ export class UserDashboardService {
   static async getWardEngineerDashboard(args: {
     wardId: string | null | undefined;
     department: Department | null | undefined;
+    userId: string;
   }): Promise<WardEngineerDashboardPayload> {
     if (!args.wardId) throw new ApiError(400, "WARD_ENGINEER must have wardId");
     if (!args.department) throw new ApiError(400, "WARD_ENGINEER must have department");
 
     const wardId = args.wardId;
     const department = args.department;
+    const userId = args.userId;
     const now = new Date();
 
+    // Show all issues assigned to this engineer in their ward, regardless of department
     const where: Prisma.IssueWhereInput = {
       deletedAt: null,
       wardId,
-      category: { department },
+      assigneeId: userId,
     };
 
     const [
@@ -103,7 +106,7 @@ export class UserDashboardService {
         where: {
           deletedAt: null,
           wardId,
-          category: { department },
+          assigneeId: userId,
           resolvedAt: { not: null },
           slaTargetAt: { not: null },
         },
@@ -113,7 +116,7 @@ export class UserDashboardService {
         where: {
           deletedAt: null,
           wardId,
-          category: { department },
+          assigneeId: userId,
           slaTargetAt: { not: null, lt: now },
           resolvedAt: null,
         },
@@ -158,76 +161,6 @@ export class UserDashboardService {
         breachedSla,
       },
       averageResolutionTimeHours: avgResolutionTimeHours,
-    };
-  }
-
-  static async getAssignedIssuesDashboard(userId: string, userDepartment: Department | null, limit = 10): Promise<AssignedIssuesDashboardPayload> {
-    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
-
-    const where: Prisma.IssueWhereInput = {
-      deletedAt: null,
-      assigneeId: userId,
-      ...(userDepartment && { category: { department: userDepartment } })
-    };
-
-    const [totalAssigned, byStatusRows, byPriorityRows, items] = await Promise.all([
-      prisma.issue.count({ where }),
-
-      // Group counts by IssueStatus (fast aggregation on DB)
-      prisma.issue.groupBy({
-        by: ["status"],
-        where,
-        _count: { _all: true },
-      }),
-
-      // Group counts by Priority (exclude null priorities)
-      prisma.issue.groupBy({
-        by: ["priority"],
-        where,
-        _count: { _all: true },
-      }),
-
-        prisma.issue.findMany({
-        where,
-        orderBy: { updatedAt: "desc" },
-        take: safeLimit,
-        select: {
-          id: true,
-          ticketNumber: true,
-          status: true,
-          priority: true,
-          createdAt: true,
-          category: {
-            select: {
-              name: true,
-              department: true
-            }
-          },
-          ward: {
-            select: {
-              wardNumber: true,
-              name: true
-            }
-          },
-          assignee: {
-            select: {
-              fullName: true
-            }
-          }
-        },
-      }),
-    ]);
-   return {
-      totalAssigned,
-      issuesByStatus: groupByToCountMap<IssueStatus>(
-        byStatusRows.map((r) => ({ key: r.status, count: r._count._all }))
-      ),
-      issuesByPriority: groupByToCountMap<Priority>(
-        byPriorityRows
-          .filter((r) => r.priority !== null)
-          .map((r) => ({ key: r.priority as Priority, count: r._count._all }))
-      ),
-      assignedIssues: items as DashboardIssueListItem[],
     };
   }
 
@@ -340,7 +273,13 @@ export class UserDashboardService {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
 
     const activities = await prisma.auditLog.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        // Filter out login/logout activities - only show issue-related activities
+        action: {
+          notIn: ['LOGIN', 'LOGOUT']
+        }
+      },
       orderBy: { createdAt: "desc" },
       take: safeLimit,
       select: {

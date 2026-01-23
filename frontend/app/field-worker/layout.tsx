@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, BarChart3, Menu, X } from "lucide-react";
+import { Users, BarChart3, Menu, X, FileText, CheckCircle, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Header from "@/components/admin/Header";
@@ -21,6 +21,24 @@ export default function FieldWorkerLayout({
       href: "/field-worker",
       icon: BarChart3,
       current: pathname === "/field-worker",
+    },
+    {
+      name: "My Issues",
+      href: "/field-worker/my-issues",
+      icon: FileText,
+      current: pathname === "/field-worker/my-issues",
+    },
+    {
+      name: "Resolved Issues",
+      href: "/field-worker/resolved-issues",
+      icon: CheckCircle,
+      current: pathname === "/field-worker/resolved-issues",
+    },
+    {
+      name: "Activity",
+      href: "/field-worker/activity",
+      icon: Activity,
+      current: pathname === "/field-worker/activity",
     },
     {
       name: "Profile",

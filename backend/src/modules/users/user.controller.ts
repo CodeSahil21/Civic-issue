@@ -4,6 +4,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { ApiResponse } from "../../utils/apiResponse";
 import { ApiError } from "../../utils/apiError";
 import { UserDashboardService } from "./user.service";
+import { IssuesService } from "../issues/issue.service";
 
 function parseLimit(req: Request): number {
   const raw = req.query.limit;
@@ -26,7 +27,7 @@ export class UserDashboardController {
   });
 
   static wardEngineer = asyncHandler(async (req: Request, res: Response) => {
-    const { wardId, department } = req.user!;
+    const { wardId, department, id: userId } = req.user!;
 
     UserDashboardService.assertWardEngineerScope(wardId, department);
 
@@ -38,18 +39,10 @@ export class UserDashboardController {
     const data = await UserDashboardService.getWardEngineerDashboard({
       wardId: wardId as string,
       department: department as Department,
+      userId: userId as string,
     });
 
     return res.status(200).json(new ApiResponse(200, data, "Ward engineer dashboard retrieved"));
-  });
-
-  static assigned = asyncHandler(async (req: Request, res: Response) => {
-    const userId = req.user!.id;
-    const userDepartment = req.user!.department as Department | null;
-    const limit = parseLimit(req);
-
-    const data = await UserDashboardService.getAssignedIssuesDashboard(userId, userDepartment, limit);
-    return res.status(200).json(new ApiResponse(200, data, "Assigned issues dashboard retrieved"));
   });
 
   // Update own profile
@@ -77,5 +70,20 @@ export class UserDashboardController {
 
     const activities = await UserDashboardService.getUserActivityLog(userId, limit);
     return res.status(200).json(new ApiResponse(200, activities, "Activity log retrieved successfully"));
+  });
+
+  // List assigned issues with pagination using issues service
+  static listAssignedIssues = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
+
+    const result = await IssuesService.listIssues({
+      assigneeId: userId,
+      page,
+      pageSize
+    });
+    
+    return res.status(200).json(new ApiResponse(200, result, "Assigned issues retrieved successfully"));
   });
 }

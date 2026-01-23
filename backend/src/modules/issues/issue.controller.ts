@@ -50,8 +50,8 @@ export class IssuesController {
     const query = req.query as any;
     const input = {
       ...query,
-      page: query.page || 1,
-      pageSize: query.pageSize || 20
+      page: Number(query.page) || 1,
+      pageSize: Number(query.pageSize) || 20
     };
     
     const result = await IssuesService.listIssues(input);
@@ -71,14 +71,14 @@ export class IssuesController {
 
   static uploadAfterMedia = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.id;
-    const userRole = req.user!.role;
+    const userRole = req.user!.role as any; // Cast to handle role type
 
     const updated = await IssuesService.addAfterMediaIssue({
       issueId: req.params.issueId,
       userId,
       userRole,
       media: req.body.media,
-      markResolved: req.body.markResolved,
+      markResolved: req.body.markResolved || false, // Ensure default false
     });
 
     res.status(200).json(

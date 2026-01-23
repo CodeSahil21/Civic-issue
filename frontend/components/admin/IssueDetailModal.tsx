@@ -20,18 +20,13 @@ export default function IssueDetailModal({ isOpen, onClose, issueId }: IssueDeta
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && issueId) {
+    if (isOpen && issueId && (!currentIssue || currentIssue.id !== issueId)) {
       dispatch(clearIssuesError());
       dispatch(fetchIssueById(issueId));
     }
-  }, [dispatch, issueId, isOpen]);
+  }, [dispatch, issueId, isOpen, currentIssue]);
 
-  useEffect(() => {
-    if (currentIssue) {
-      console.log('Current issue data:', currentIssue);
-      console.log('Media data:', currentIssue.media);
-    }
-  }, [currentIssue]);
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {

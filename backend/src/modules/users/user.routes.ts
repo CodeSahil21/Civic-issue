@@ -15,11 +15,11 @@ router.use(verifyJWT);
 // Dashboard endpoints
 router.get("/dashboard/field-worker", requireRole(["FIELD_WORKER"]), UserDashboardController.fieldWorker);
 router.get("/dashboard/ward-engineer", requireRole(["WARD_ENGINEER"]), UserDashboardController.wardEngineer);
-router.get("/dashboard/assigned", requireRole(["FIELD_WORKER", "WARD_ENGINEER"]), UserDashboardController.assigned);
 
 // Profile management (all authenticated users)
 router.patch("/profile", validateRequest(updateProfileSchema, 'body'), UserDashboardController.updateProfile);
 router.post("/change-password", validateRequest(changePasswordSchema, 'body'), UserDashboardController.changePassword);
 router.get("/activity", UserDashboardController.getActivityLog);
+router.get("/assigned-issues", requireRole(["WARD_ENGINEER"]), UserDashboardController.listAssignedIssues);
 
 export default router;

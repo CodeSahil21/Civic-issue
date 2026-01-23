@@ -125,6 +125,13 @@ interface ListIssuesParams {
   zoneId?: string;
   categoryId?: string;
   assigneeId?: string;
+  reporterId?: string;
+}
+
+interface AddAfterMediaData {
+  issueId: string;
+  media: Array<{ url: string; mimeType: string; fileSize: number }>;
+  markResolved?: boolean;
 }
 
 interface UpdateStatusData {
@@ -170,7 +177,7 @@ export const fetchCategories = createAsyncThunk(
 // Fetch issue statistics
 export const fetchIssueStats = createAsyncThunk(
   "issues/fetchStats",
-  async (params: { wardId?: string; zoneId?: string; assigneeId?: string }, { rejectWithValue }) => {
+  async (params: { wardId?: string; zoneId?: string; assigneeId?: string; reporterId?: string }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get("/issues/stats", { params });
       return response.data.data;
@@ -287,6 +294,22 @@ export const uploadAfterImages = createAsyncThunk(
   }
 );
 
+// Add after media to issue
+export const addAfterMedia = createAsyncThunk(
+  "issues/addAfterMedia",
+  async (data: AddAfterMediaData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post(`/issues/${data.issueId}/after-media`, {
+        media: data.media,
+        markResolved: data.markResolved || false
+      });
+      return response.data.data; // Extract data from API response wrapper
+    } catch (error: unknown) {
+      return rejectWithValue(handleAxiosError(error, "Failed to add after media"));
+    }
+  }
+);
+
 // Delete image
 export const deleteImage = createAsyncThunk(
   "issues/deleteImage",
@@ -371,8 +394,13 @@ const issuesSlice = createSlice({
       })
       .addCase(fetchIssues.fulfilled, (state, action) => {
         state.loading = false;
-        state.issues = action.payload.issues;
-        state.pagination = action.payload.pagination;
+        state.issues = action.payload.items;
+        state.pagination = {
+          page: action.payload.page,
+          pageSize: action.payload.pageSize,
+          total: action.payload.total,
+          totalPages: action.payload.totalPages
+        };
         state.error = null;
       })
       .addCase(fetchIssues.rejected, (state, action) => {
@@ -421,8 +449,24 @@ const issuesSlice = createSlice({
       .addCase(addComment.rejected, (state, action) => {
         state.error = action.payload as string;
       });
+    // Add after media
+    builder
+      .addCase(addAfterMedia.fulfilled, (state, action) => {
+        const updatedIssue = action.payload;
+        const index = state.issues.findIndex(issue => issue.id === updatedIssue.id);
+        if (index !== -1) {
+          state.issues[index] = updatedIssue;
+        }
+        if (state.currentIssue?.id === updatedIssue.id) {
+          state.currentIssue = updatedIssue;
+        }
+      })
+      .addCase(addAfterMedia.rejected, (state, action) => {
+        state.error = action.payload as string;
+      });
   }
 });
 
 export const { clearError, setCurrentIssue, clearCurrentIssue, updateIssueInList } = issuesSlice.actions;
+export { addAfterMedia };
 export default issuesSlice.reducer;

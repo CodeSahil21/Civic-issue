@@ -32,6 +32,7 @@ export default function ProtectWrapper({ children }: ProtectWrapperProps) {
         dispatch(clearAuth());
         dispatch(clearUserState());
         router.push('/login');
+        setIsLoading(false);
         return;
       }
 
@@ -45,6 +46,7 @@ export default function ProtectWrapper({ children }: ProtectWrapperProps) {
           dispatch(clearAuth());
           dispatch(clearUserState());
           router.push('/login');
+          setIsLoading(false);
           return;
         }
       }
@@ -52,8 +54,18 @@ export default function ProtectWrapper({ children }: ProtectWrapperProps) {
       setIsLoading(false);
     };
 
-    checkAuth();
-  }, [dispatch, router, user]);
+    // Only run if we're still loading or don't have user data
+    if (isLoading || (!user && localStorage.getItem('authToken'))) {
+      checkAuth();
+    }
+  }, [dispatch, router, isLoading]); // Remove user from dependency array
+
+  // Separate effect to handle when user data is loaded
+  useEffect(() => {
+    if (user && isLoading) {
+      setIsLoading(false);
+    }
+  }, [user, isLoading]);
 
   // Console log current user state
   useEffect(() => {

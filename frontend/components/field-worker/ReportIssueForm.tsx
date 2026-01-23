@@ -33,6 +33,7 @@ export default function ReportIssueForm() {
   const dispatch = useAppDispatch();
   const { categories, loading: issuesLoading } = useAppSelector((state) => state.issues);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<Array<{url: string; publicId: string; mimeType: string; fileSize: number}>>([]);
@@ -209,7 +210,7 @@ export default function ReportIssueForm() {
       const issueData = {
         categoryId: selectedCategory,
         description,
-        priority: "MEDIUM" as const,
+        priority: priority,
         latitude: location.latitude,
         longitude: location.longitude,
         media: uploadedImages.map(img => ({
@@ -225,6 +226,7 @@ export default function ReportIssueForm() {
       
       // Reset form
       setSelectedCategory("");
+      setPriority("MEDIUM");
       setDescription("");
       setImages([]);
       setUploadedImages([]);
@@ -411,6 +413,24 @@ export default function ReportIssueForm() {
                       {category.name} ({category.department})
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Priority Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Priority <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="LOW">Low - Minor issue, can wait</option>
+                  <option value="MEDIUM">Medium - Normal priority</option>
+                  <option value="HIGH">High - Needs attention soon</option>
+                  <option value="CRITICAL">Critical - Urgent, safety concern</option>
                 </select>
               </div>
 

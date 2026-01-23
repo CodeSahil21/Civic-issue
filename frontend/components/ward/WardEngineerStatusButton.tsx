@@ -4,17 +4,17 @@ import { updateIssueStatus } from "@/redux/slices/issuesSlice";
 import { useState } from "react";
 import { Play, CheckCircle } from "lucide-react";
 
-interface StatusUpdateButtonProps {
+interface WardEngineerStatusButtonProps {
   issueId: string;
   currentStatus: string;
   onStatusUpdate?: () => void;
 }
 
-export default function StatusUpdateButton({ 
+export default function WardEngineerStatusButton({ 
   issueId, 
   currentStatus, 
   onStatusUpdate 
-}: StatusUpdateButtonProps) {
+}: WardEngineerStatusButtonProps) {
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
 
@@ -56,10 +56,9 @@ export default function StatusUpdateButton({
       <Button 
         onClick={handleStartWork}
         disabled={loading}
-        className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1"
-        size="sm"
+        className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
       >
-        <Play className="w-3 h-3" />
+        <Play className="w-4 h-4" />
         {loading ? "Starting..." : "Start Work"}
       </Button>
     );
@@ -71,10 +70,9 @@ export default function StatusUpdateButton({
       <Button 
         onClick={handleFinishWork}
         disabled={loading}
-        className="bg-green-600 hover:bg-green-700 flex items-center gap-1"
-        size="sm"
+        className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
       >
-        <CheckCircle className="w-3 h-3" />
+        <CheckCircle className="w-4 h-4" />
         {loading ? "Finishing..." : "Finish Work"}
       </Button>
     );

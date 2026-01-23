@@ -60,7 +60,7 @@ export const addAfterMediaWithParamsSchema = z.object({
     )
     .min(1)
     .max(10),
-  markResolved: z.boolean().optional().default(true),
+  markResolved: z.boolean().optional(),
 });
 
 export const updateStatusWithParamsSchema = z.object({

@@ -49,6 +49,7 @@ export {
   fetchFieldWorkerDashboard,
   fetchWardEngineerDashboard,
   fetchAssignedIssuesDashboard,
+  fetchAssignedIssuesPaginated,
   updateProfile,
   changePassword,
   fetchActivityLog,

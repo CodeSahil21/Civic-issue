@@ -23,9 +23,33 @@ export const generateTokenWithUser = async (userId: string) => {
                 id: true,
                 fullName: true,
                 email: true,
+                phoneNumber: true,
                 role: true,
+                department: true,
+                isActive: true,
                 wardId: true,
-                zoneId: true
+                zoneId: true,
+                ward: {
+                    select: {
+                        id: true,
+                        wardNumber: true,
+                        name: true,
+                        zone: {
+                            select: {
+                                id: true,
+                                name: true,
+                                code: true
+                            }
+                        }
+                    }
+                },
+                zone: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true
+                    }
+                }
             }
         });
 
@@ -37,14 +61,7 @@ export const generateTokenWithUser = async (userId: string) => {
 
         return { 
             token, 
-            user: {
-                id: user.id,
-                fullName: user.fullName,
-                email: user.email,
-                role: user.role,
-                wardId: user.wardId,
-                zoneId: user.zoneId
-            }
+            user
         };
 
     } catch (error) {
