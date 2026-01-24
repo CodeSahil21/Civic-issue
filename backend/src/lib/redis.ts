@@ -14,7 +14,7 @@ export const redis = createClient({
   },
 });
 
-redis.on('error', (err) => console.error('Redis Client Error', err));
+redis.on('error', (err: any) => console.error('Redis Client Error', err));
 
 let initialized = false;
 export const connectRedis = async (): Promise<void> => {
