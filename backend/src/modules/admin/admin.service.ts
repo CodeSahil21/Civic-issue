@@ -488,9 +488,13 @@ export class AdminService {
   }
 
 
-  // Deactivate user (soft delete)
-  static async deactivateUser(userId: string, deactivatedBy: string): Promise<UserStatusChange> {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+  // Deactivate user with issue reassignment
+  static async deactivateUser(userId: string, deactivatedBy: string, reassignToUserId?: string): Promise<UserStatusChange> {
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      include: { ward: true, zone: true }
+    });
+    
     if (!user) {
       throw new ApiError(404, "User not found");
     }
@@ -504,16 +508,59 @@ export class AdminService {
     }
 
     // Check for active assignments
-    const activeIssues = await prisma.issue.count({
+    const activeIssues = await prisma.issue.findMany({
       where: {
         assigneeId: userId,
-        status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+        status: { in: ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED'] },
         deletedAt: null
-      }
+      },
+      select: { id: true, ticketNumber: true, status: true }
     });
 
-    if (activeIssues > 0) {
-      throw new ApiError(400, `Cannot deactivate user with ${activeIssues} active issue(s). Please reassign them first.`);
+    // If there are active issues and no reassignment user provided, throw error
+    if (activeIssues.length > 0 && !reassignToUserId) {
+      throw new ApiError(400, `Cannot deactivate user with ${activeIssues.length} active issue(s). Please reassign them first.`);
+    }
+
+    // If reassignment is needed, reassign all active issues
+    if (activeIssues.length > 0 && reassignToUserId) {
+      const reassignToUser = await prisma.user.findUnique({
+        where: { id: reassignToUserId },
+        select: { id: true, fullName: true, role: true, isActive: true }
+      });
+
+      if (!reassignToUser || !reassignToUser.isActive) {
+        throw new ApiError(400, "Invalid reassignment target user");
+      }
+
+      // Reassign all active issues
+      await prisma.issue.updateMany({
+        where: {
+          assigneeId: userId,
+          status: { in: ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED'] },
+          deletedAt: null
+        },
+        data: {
+          assigneeId: reassignToUserId,
+          assignedAt: new Date()
+        }
+      });
+
+      // Log reassignment
+      await prisma.auditLog.create({
+        data: {
+          userId: deactivatedBy,
+          action: "ISSUE_REASSIGNMENT",
+          resource: "Issue",
+          resourceId: userId,
+          metadata: {
+            fromUser: { fullName: user.fullName, role: user.role },
+            toUser: { fullName: reassignToUser.fullName, role: reassignToUser.role },
+            issueCount: activeIssues.length,
+            reason: "User deactivation"
+          }
+        }
+      });
     }
 
     // Deactivate user
@@ -541,7 +588,9 @@ export class AdminService {
             fullName: user.fullName,
             email: user.email,
             role: user.role
-          }
+          },
+          reassignedIssues: activeIssues.length,
+          reassignedTo: reassignToUserId ? reassignToUserId : null
         }
       }
     });
