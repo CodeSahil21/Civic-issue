@@ -4,12 +4,14 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && prisma db push && tsc",
     "start": "node dist/index.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:seed2": "tsx prisma/seed2.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prisma:deploy": "prisma db push",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "render:build": "npm install && prisma generate && prisma db push && npm run build",
+    "render:start": "npm run start"
   },
   "author": "Tech Titans",
   "license": "ISC",
