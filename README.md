@@ -68,7 +68,6 @@ Each role sees only relevant data and actions.
 ### 🧭 Map & Navigation (Frontend-only)
 - Issue detail page shows:
   - Ward number
-  - Latitude & longitude
 - One-click “Open in Map” button
 - Redirects to:
   - Google Maps
@@ -149,39 +148,42 @@ This approach avoids dependency on paid or restricted map APIs and ensures relia
 
 ## 📁 Project Structure
 
+
+```
 VMC-Civic-Issue-Monitoring/
 ├── backend/
-│ ├── data/
-│ │ └── ward-boundaries.geojson
-│ ├── prisma/
-│ │ ├── schema.prisma
-│ │ └── seed.ts
-│ └── src/
-│ ├── middlewares/
-│ ├── modules/
-│ │ ├── auth/
-│ │ ├── issues/
-│ │ ├── users/
-│ │ └── admin/
-│ ├── services/
-│ ├── utils/
-│ ├── app.ts
-│ └── index.ts
+│   ├── data/
+│   │   └── ward-boundaries.geojson
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── seed.ts
+│   └── src/
+│       ├── middlewares/
+│       ├── modules/
+│       │   ├── auth/
+│       │   ├── issues/
+│       │   ├── users/
+│       │   └── admin/
+│       ├── services/
+│       ├── utils/
+│       ├── app.ts
+│       └── index.ts
 │
 ├── frontend/
-│ ├── app/
-│ │ ├── (auth)/
-│ │ ├── field-worker/
-│ │ ├── ward-engineer/
-│ │ ├── zone-officer/
-│ │ └── admin/
-│ ├── components/
-│ ├── hooks/
-│ ├── redux/
-│ ├── public/
-│ └── lib/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   ├── field-worker/
+│   │   ├── ward-engineer/
+│   │   ├── zone-officer/
+│   │   └── admin/
+│   ├── components/
+│   ├── hooks/
+│   ├── redux/
+│   ├── public/
+│   └── lib/
 │
 └── README.md
+```
 
 ---
 
@@ -209,26 +211,4 @@ npm install
 cp .env.example .env.local
 npm run dev
 ```
-
-🏁 Hackathon Note
-This project is developed as a working MVP tailored for real municipal operations.
-Some integrations (production AI models, paid map APIs, background job queues) are intentionally kept at prototype level and can be fully productionized with official data access and infrastructure support from VMC.
-
-📄 License
-MIT License
-
 ---
-
-## ✅ Final Notes
-
-- ✔ Hackathon-safe  
-- ✔ Honest & technically sound  
-- ✔ Matches your backend + frontend decisions  
-- ✔ Easy for judges to understand  
-
-If you want next:
-- 🎤 **Judge Q&A answers**
-- 🧠 **2-minute architecture explanation**
-- 📊 **Final demo walkthrough script**
-
-Just say the word 🚀
