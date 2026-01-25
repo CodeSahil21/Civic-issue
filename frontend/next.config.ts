@@ -14,7 +14,6 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: 'c:\\Sahil Singh Personal\\OneDrive\\Desktop\\Projects\\Civic-issue\\frontend',
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -24,7 +23,7 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
-  // your existing config options
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);
